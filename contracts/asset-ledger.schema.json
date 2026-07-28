@@ -57,6 +57,7 @@
         "sha256",
         "ownerRef",
         "sourceRef",
+        "signerRefs",
         "assetStatus",
         "reviewStatus",
         "consent",
@@ -82,6 +83,14 @@
         "sourceRef": {
           "type": "string",
           "pattern": "^source_[a-z0-9]{12,64}$"
+        },
+        "signerRefs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^signer_[a-z0-9]{12,64}$"
+          }
         },
         "assetStatus": {
           "enum": ["draft", "licensed", "withdrawn"]
@@ -116,18 +125,43 @@
           "then": {
             "required": ["reviewerApproval"],
             "properties": {
+              "signerRefs": {
+                "minItems": 1
+              },
               "reviewStatus": {
                 "const": "approved"
               },
               "consent": {
+                "required": ["consentRef", "subjectSignerRefs", "exactHash"],
                 "properties": {
                   "status": {
                     "const": "granted"
+                  },
+                  "subjectSignerRefs": {
+                    "minItems": 1
                   }
                 }
               },
               "rights": {
-                "required": ["grantRef", "exactHash", "termModel"]
+                "required": [
+                  "grantRef",
+                  "exactHash",
+                  "termModel",
+                  "grantedPurposes",
+                  "grantedChannels",
+                  "territories"
+                ],
+                "properties": {
+                  "grantedPurposes": {
+                    "minItems": 1
+                  },
+                  "grantedChannels": {
+                    "minItems": 1
+                  },
+                  "territories": {
+                    "minItems": 1
+                  }
+                }
               }
             }
           }
@@ -137,7 +171,7 @@
     "consent": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status"],
+      "required": ["status", "subjectSignerRefs"],
       "properties": {
         "status": {
           "enum": ["pending", "granted", "withdrawn"]
@@ -145,6 +179,17 @@
         "consentRef": {
           "type": "string",
           "pattern": "^consent_[a-z0-9]{12,64}$"
+        },
+        "subjectSignerRefs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^signer_[a-z0-9]{12,64}$"
+          }
+        },
+        "exactHash": {
+          "$ref": "#/$defs/hash"
         }
       }
     },
@@ -152,12 +197,13 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "offlinePlayback",
-        "publicDemo",
-        "contestSubmission",
-        "sponsorPublicity",
+        "grantedPurposes",
+        "grantedChannels",
+        "territories",
         "modification",
-        "territories"
+        "hosting",
+        "redistribution",
+        "sublicensing"
       ],
       "properties": {
         "grantRef": {
@@ -170,19 +216,42 @@
         "termModel": {
           "const": "irrevocable_exact_hash"
         },
-        "offlinePlayback": {
-          "type": "boolean"
+        "grantedPurposes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "product_playback",
+              "public_demo",
+              "contest_submission",
+              "sponsor_publicity"
+            ]
+          }
         },
-        "publicDemo": {
-          "type": "boolean"
-        },
-        "contestSubmission": {
-          "type": "boolean"
-        },
-        "sponsorPublicity": {
-          "type": "boolean"
+        "grantedChannels": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "pwa",
+              "chrome_extension",
+              "offline_signpack",
+              "demo_video",
+              "contest_platform",
+              "sponsor_media"
+            ]
+          }
         },
         "modification": {
+          "type": "boolean"
+        },
+        "hosting": {
+          "type": "boolean"
+        },
+        "redistribution": {
+          "type": "boolean"
+        },
+        "sublicensing": {
           "type": "boolean"
         },
         "territories": {

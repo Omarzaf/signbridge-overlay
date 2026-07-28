@@ -13,6 +13,46 @@ export type AssetStatus = "draft" | "licensed" | "withdrawn";
 export type ConsentStatus = "pending" | "granted" | "withdrawn";
 export type Environment = "synthetic_test" | "development" | "production";
 
+export const RELEASE_PURPOSES = [
+  "product_playback",
+  "public_demo",
+  "contest_submission",
+  "sponsor_publicity",
+] as const;
+
+export type ReleasePurpose = (typeof RELEASE_PURPOSES)[number];
+
+export const RELEASE_CHANNELS = [
+  "pwa",
+  "chrome_extension",
+  "offline_signpack",
+  "demo_video",
+  "contest_platform",
+  "sponsor_media",
+] as const;
+
+export type ReleaseChannel = (typeof RELEASE_CHANNELS)[number];
+
+export interface ReleaseScope {
+  readonly purposes: readonly ReleasePurpose[];
+  readonly channels: readonly ReleaseChannel[];
+  readonly territories: readonly string[];
+  readonly modification: boolean;
+  readonly hosting: boolean;
+  readonly redistribution: boolean;
+  readonly sublicensing: boolean;
+}
+
+export interface ReleaseRequest {
+  readonly schemaVersion: SchemaVersion;
+  readonly requestId: string;
+  readonly packId: string;
+  readonly requestedAt: string;
+  readonly assurance: "structural_preflight_only";
+  readonly selectedReviewEventIds: readonly string[];
+  readonly scope: ReleaseScope;
+}
+
 export interface CaptionFallback {
   readonly language: string;
   readonly text: string;
@@ -143,22 +183,26 @@ export interface AssetLedgerRecord {
   readonly sha256: string;
   readonly ownerRef: string;
   readonly sourceRef: string;
+  readonly signerRefs: readonly string[];
   readonly assetStatus: AssetStatus;
   readonly reviewStatus: ReviewStatus;
   readonly consent: {
     readonly status: ConsentStatus;
     readonly consentRef?: string;
+    readonly subjectSignerRefs: readonly string[];
+    readonly exactHash?: string;
   };
   readonly rights: {
     readonly grantRef?: string;
     readonly exactHash?: string;
     readonly termModel?: "irrevocable_exact_hash";
-    readonly offlinePlayback: boolean;
-    readonly publicDemo: boolean;
-    readonly contestSubmission: boolean;
-    readonly sponsorPublicity: boolean;
-    readonly modification: boolean;
+    readonly grantedPurposes: readonly ReleasePurpose[];
+    readonly grantedChannels: readonly ReleaseChannel[];
     readonly territories: readonly string[];
+    readonly modification: boolean;
+    readonly hosting: boolean;
+    readonly redistribution: boolean;
+    readonly sublicensing: boolean;
   };
   readonly attribution: string;
   readonly reviewerApproval?: {
@@ -269,14 +313,30 @@ export type ValidationResult<T> =
       readonly issues: readonly ValidationIssue[];
     };
 
-export interface PublicationPreflightInput {
+export interface ReleaseCandidateInput {
   readonly signPack: unknown;
   readonly reviewEvents: unknown;
   readonly assetLedger: unknown;
+  readonly releaseRequest: unknown;
 }
 
-export interface StructuralPublicationPreflight {
-  readonly signPack: SignPack;
+export type DraftReleaseCandidateSignPack = Omit<
+  SignPack,
+  | "releaseStatus"
+  | "developmentOnly"
+  | "linguisticReviewStatus"
+  | "publication"
+> & {
+  readonly releaseStatus: "draft";
+  readonly developmentOnly: false;
+  readonly linguisticReviewStatus: "human_reviewed";
+  readonly publication?: never;
+};
+
+export interface StructurallyValidReleaseCandidate {
+  readonly assurance: "structural_preflight_only";
+  readonly signPack: DraftReleaseCandidateSignPack;
   readonly reviewEvents: readonly ReviewEvent[];
   readonly assetLedger: AssetLedger;
+  readonly releaseRequest: ReleaseRequest;
 }

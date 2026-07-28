@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://signbridge.example/contracts/release-request.schema.json",
+  "title": "SignBridge Release Request",
+  "description": "A draft-only request describing the exact review decisions and distribution scope to be checked before publisher authorization.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "requestId",
+    "packId",
+    "requestedAt",
+    "assurance",
+    "selectedReviewEventIds",
+    "scope"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "requestId": {
+      "type": "string",
+      "pattern": "^relreq_[a-z0-9]{12,64}$"
+    },
+    "packId": {
+      "type": "string",
+      "pattern": "^spk_[a-z0-9]{12,64}$"
+    },
+    "requestedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "assurance": {
+      "const": "structural_preflight_only"
+    },
+    "selectedReviewEventIds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^rev_[a-z0-9]{12,64}$"
+      }
+    },
+    "scope": {
+      "$ref": "#/$defs/releaseScope"
+    }
+  },
+  "$defs": {
+    "releaseScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "purposes",
+        "channels",
+        "territories",
+        "modification",
+        "hosting",
+        "redistribution",
+        "sublicensing"
+      ],
+      "properties": {
+        "purposes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "product_playback",
+              "public_demo",
+              "contest_submission",
+              "sponsor_publicity"
+            ]
+          }
+        },
+        "channels": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "pwa",
+              "chrome_extension",
+              "offline_signpack",
+              "demo_video",
+              "contest_platform",
+              "sponsor_media"
+            ]
+          }
+        },
+        "territories": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "anyOf": [
+              {
+                "const": "worldwide"
+              },
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{2}$"
+              }
+            ]
+          }
+        },
+        "modification": {
+          "type": "boolean"
+        },
+        "hosting": {
+          "type": "boolean"
+        },
+        "redistribution": {
+          "type": "boolean"
+        },
+        "sublicensing": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

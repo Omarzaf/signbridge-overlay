@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "1.0.0",
+  "requestId": "relreq_synthetic0001",
+  "packId": "spk_synthetic000001",
+  "requestedAt": "2026-01-01T00:00:05.000Z",
+  "assurance": "structural_preflight_only",
+  "selectedReviewEventIds": [
+    "rev_synthetic000001"
+  ],
+  "scope": {
+    "purposes": [
+      "product_playback"
+    ],
+    "channels": [
+      "offline_signpack"
+    ],
+    "territories": [
+      "ZZ"
+    ],
+    "modification": false,
+    "hosting": false,
+    "redistribution": false,
+    "sublicensing": false
+  }
+}

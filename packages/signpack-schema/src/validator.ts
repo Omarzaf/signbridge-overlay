@@ -1,13 +1,17 @@
 import {
   CONTEST_EVIDENCE_CATEGORIES,
+  RELEASE_CHANNELS,
+  RELEASE_PURPOSES,
   SCHEMA_VERSION,
   type AssetLedger,
   type ContestEvidence,
   type ContestEvidenceCategory,
+  type DraftReleaseCandidateSignPack,
   type ReviewEvent,
+  type ReleaseRequest,
   type RunManifest,
   type SignPack,
-  type StructuralPublicationPreflight,
+  type StructurallyValidReleaseCandidate,
   type ValidationIssue,
   type ValidationResult,
 } from "./types";
@@ -42,6 +46,7 @@ const ID_PATTERNS = {
   consent: /^consent_[a-z0-9]{12,64}$/u,
   rights: /^rights_[a-z0-9]{12,64}$/u,
   entrant: /^entrant_[a-z0-9]{12,64}$/u,
+  releaseRequest: /^relreq_[a-z0-9]{12,64}$/u,
 } as const;
 
 const COUNT_CATEGORY_UNITS: Partial<
@@ -266,6 +271,69 @@ function uniqueStringArray(
     }
     if (!pattern.test(value)) {
       collector.add(itemPath, "format", "has an invalid identifier format");
+    }
+    if (seen.has(value)) {
+      collector.add(itemPath, "duplicate", "must be unique");
+    }
+    seen.add(value);
+    result.push(value);
+  });
+
+  return result;
+}
+
+function uniqueEnumStringArray<T extends string>(
+  values: readonly unknown[],
+  path: string,
+  collector: Collector,
+  allowedValues: readonly T[],
+): T[] {
+  const result: T[] = [];
+  const seen = new Set<string>();
+
+  values.forEach((value, index) => {
+    const itemPath = `${path}[${index}]`;
+    if (
+      typeof value !== "string" ||
+      !(allowedValues as readonly string[]).includes(value)
+    ) {
+      collector.add(
+        itemPath,
+        "enum",
+        `must be one of: ${allowedValues.join(", ")}`,
+      );
+      return;
+    }
+    if (seen.has(value)) {
+      collector.add(itemPath, "duplicate", "must be unique");
+    }
+    seen.add(value);
+    result.push(value as T);
+  });
+
+  return result;
+}
+
+function uniqueTerritoryArray(
+  values: readonly unknown[],
+  path: string,
+  collector: Collector,
+): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  values.forEach((value, index) => {
+    const itemPath = `${path}[${index}]`;
+    if (
+      typeof value !== "string" ||
+      (value !== "worldwide" && !REGION_PATTERN.test(value))
+    ) {
+      collector.add(
+        itemPath,
+        "format",
+        "must be worldwide or an ISO alpha-2 region",
+      );
+      return;
     }
     if (seen.has(value)) {
       collector.add(itemPath, "duplicate", "must be unique");
@@ -1328,6 +1396,134 @@ export function validateRunManifest(
   return finish(input, collector);
 }
 
+export function validateReleaseRequest(
+  input: unknown,
+): ValidationResult<ReleaseRequest> {
+  const collector = new Collector();
+  const root = objectAt(
+    input,
+    "$",
+    [
+      "schemaVersion",
+      "requestId",
+      "packId",
+      "requestedAt",
+      "assurance",
+      "selectedReviewEventIds",
+      "scope",
+    ],
+    [
+      "schemaVersion",
+      "requestId",
+      "packId",
+      "requestedAt",
+      "assurance",
+      "selectedReviewEventIds",
+      "scope",
+    ],
+    collector,
+  );
+  if (root === undefined) {
+    return finish(input, collector);
+  }
+
+  const schemaVersion = stringAt(root, "schemaVersion", "$", collector);
+  if (schemaVersion !== undefined && schemaVersion !== SCHEMA_VERSION) {
+    collector.add(
+      "$.schemaVersion",
+      "schema_version",
+      `must equal ${SCHEMA_VERSION}`,
+    );
+  }
+  stringAt(root, "requestId", "$", collector, {
+    pattern: ID_PATTERNS.releaseRequest,
+  });
+  stringAt(root, "packId", "$", collector, { pattern: ID_PATTERNS.pack });
+  dateTimeAt(root, "requestedAt", "$", collector);
+  stringAt(root, "assurance", "$", collector, {
+    enumValues: ["structural_preflight_only"],
+  });
+  const selectedEvents = arrayAt(
+    root,
+    "selectedReviewEventIds",
+    "$",
+    collector,
+    1,
+  );
+  if (selectedEvents !== undefined) {
+    uniqueStringArray(
+      selectedEvents,
+      "$.selectedReviewEventIds",
+      collector,
+      ID_PATTERNS.event,
+    );
+  }
+
+  const scope = objectAt(
+    root["scope"],
+    "$.scope",
+    [
+      "purposes",
+      "channels",
+      "territories",
+      "modification",
+      "hosting",
+      "redistribution",
+      "sublicensing",
+    ],
+    [
+      "purposes",
+      "channels",
+      "territories",
+      "modification",
+      "hosting",
+      "redistribution",
+      "sublicensing",
+    ],
+    collector,
+  );
+  if (scope !== undefined) {
+    const purposes = arrayAt(scope, "purposes", "$.scope", collector, 1);
+    if (purposes !== undefined) {
+      uniqueEnumStringArray(
+        purposes,
+        "$.scope.purposes",
+        collector,
+        RELEASE_PURPOSES,
+      );
+    }
+    const channels = arrayAt(scope, "channels", "$.scope", collector, 1);
+    if (channels !== undefined) {
+      uniqueEnumStringArray(
+        channels,
+        "$.scope.channels",
+        collector,
+        RELEASE_CHANNELS,
+      );
+    }
+    const territories = arrayAt(
+      scope,
+      "territories",
+      "$.scope",
+      collector,
+      1,
+    );
+    if (territories !== undefined) {
+      uniqueTerritoryArray(territories, "$.scope.territories", collector);
+    }
+    for (const operation of [
+      "modification",
+      "hosting",
+      "redistribution",
+      "sublicensing",
+    ] as const) {
+      booleanAt(scope, operation, "$.scope", collector);
+    }
+  }
+
+  return finish(input, collector);
+}
+
 export function validateAssetLedger(
   input: unknown,
 ): ValidationResult<AssetLedger> {
@@ -1387,6 +1583,7 @@ export function validateAssetLedger(
         "sha256",
         "ownerRef",
         "sourceRef",
+        "signerRefs",
         "assetStatus",
         "reviewStatus",
         "consent",
@@ -1400,6 +1597,7 @@ export function validateAssetLedger(
         "sha256",
         "ownerRef",
         "sourceRef",
+        "signerRefs",
         "assetStatus",
         "reviewStatus",
         "consent",
@@ -1447,6 +1645,16 @@ export function validateAssetLedger(
     stringAt(asset, "sourceRef", path, collector, {
       pattern: ID_PATTERNS.source,
     });
+    const signerValues = arrayAt(asset, "signerRefs", path, collector);
+    const signerRefs =
+      signerValues === undefined
+        ? []
+        : uniqueStringArray(
+            signerValues,
+            `${path}.signerRefs`,
+            collector,
+            ID_PATTERNS.signer,
+          );
     const assetStatus = stringAt(asset, "assetStatus", path, collector, {
       enumValues: ["draft", "licensed", "withdrawn"],
     });
@@ -1458,12 +1666,14 @@ export function validateAssetLedger(
     const consent = objectAt(
       asset["consent"],
       `${path}.consent`,
-      ["status", "consentRef"],
-      ["status"],
+      ["status", "consentRef", "subjectSignerRefs", "exactHash"],
+      ["status", "subjectSignerRefs"],
       collector,
     );
     let consentStatus: string | undefined;
     let consentRef: string | undefined;
+    let consentHash: string | undefined;
+    let consentSignerRefs: string[] = [];
     if (consent !== undefined) {
       consentStatus = stringAt(
         consent,
@@ -1479,6 +1689,27 @@ export function validateAssetLedger(
         collector,
         { pattern: ID_PATTERNS.consent },
       );
+      const consentSignerValues = arrayAt(
+        consent,
+        "subjectSignerRefs",
+        `${path}.consent`,
+        collector,
+      );
+      if (consentSignerValues !== undefined) {
+        consentSignerRefs = uniqueStringArray(
+          consentSignerValues,
+          `${path}.consent.subjectSignerRefs`,
+          collector,
+          ID_PATTERNS.signer,
+        );
+      }
+      consentHash = optionalStringAt(
+        consent,
+        "exactHash",
+        `${path}.consent`,
+        collector,
+      );
+      checkHash(consentHash, `${path}.consent.exactHash`, collector);
       if (consentStatus === "granted" && consentRef === undefined) {
         collector.add(
           `${path}.consent.consentRef`,
@@ -1495,20 +1726,22 @@ export function validateAssetLedger(
         "grantRef",
         "exactHash",
         "termModel",
-        "offlinePlayback",
-        "publicDemo",
-        "contestSubmission",
-        "sponsorPublicity",
-        "modification",
+        "grantedPurposes",
+        "grantedChannels",
         "territories",
+        "modification",
+        "hosting",
+        "redistribution",
+        "sublicensing",
       ],
       [
-        "offlinePlayback",
-        "publicDemo",
-        "contestSubmission",
-        "sponsorPublicity",
-        "modification",
+        "grantedPurposes",
+        "grantedChannels",
         "territories",
+        "modification",
+        "hosting",
+        "redistribution",
+        "sublicensing",
       ],
       collector,
     );
@@ -1537,12 +1770,39 @@ export function validateAssetLedger(
         collector,
         { enumValues: ["irrevocable_exact_hash"] },
       );
+      const purposeValues = arrayAt(
+        rights,
+        "grantedPurposes",
+        `${path}.rights`,
+        collector,
+      );
+      if (purposeValues !== undefined) {
+        uniqueEnumStringArray(
+          purposeValues,
+          `${path}.rights.grantedPurposes`,
+          collector,
+          RELEASE_PURPOSES,
+        );
+      }
+      const channelValues = arrayAt(
+        rights,
+        "grantedChannels",
+        `${path}.rights`,
+        collector,
+      );
+      if (channelValues !== undefined) {
+        uniqueEnumStringArray(
+          channelValues,
+          `${path}.rights.grantedChannels`,
+          collector,
+          RELEASE_CHANNELS,
+        );
+      }
       for (const key of [
-        "offlinePlayback",
-        "publicDemo",
-        "contestSubmission",
-        "sponsorPublicity",
         "modification",
+        "hosting",
+        "redistribution",
+        "sublicensing",
       ] as const) {
         booleanAt(rights, key, `${path}.rights`, collector);
       }
@@ -1554,25 +1814,11 @@ export function validateAssetLedger(
         1,
       );
       if (territories !== undefined) {
-        const seen = new Set<string>();
-        territories.forEach((territory, territoryIndex) => {
-          const territoryPath = `${path}.rights.territories[${territoryIndex}]`;
-          if (
-            typeof territory !== "string" ||
-            (territory !== "worldwide" && !REGION_PATTERN.test(territory))
-          ) {
-            collector.add(
-              territoryPath,
-              "format",
-              "must be worldwide or an ISO alpha-2 region",
-            );
-            return;
-          }
-          if (seen.has(territory)) {
-            collector.add(territoryPath, "duplicate", "must be unique");
-          }
-          seen.add(territory);
-        });
+        uniqueTerritoryArray(
+          territories,
+          `${path}.rights.territories`,
+          collector,
+        );
       }
     }
 
@@ -1629,6 +1875,25 @@ export function validateAssetLedger(
           "licensed assets require granted consent and its evidence reference",
         );
       }
+      if (signerRefs.length === 0) {
+        collector.add(
+          `${path}.signerRefs`,
+          "license_gate",
+          "licensed assets require at least one consent-safe signer reference",
+        );
+      }
+      if (
+        signerRefs.length !== consentSignerRefs.length ||
+        signerRefs.some(
+          (signerRef) => !consentSignerRefs.includes(signerRef),
+        )
+      ) {
+        collector.add(
+          `${path}.consent.subjectSignerRefs`,
+          "signer_consent",
+          "must exactly match the asset signerRefs set",
+        );
+      }
       if (
         grantRef === undefined ||
         rightsHash === undefined ||
@@ -1650,6 +1915,13 @@ export function validateAssetLedger(
       if (sha256 !== undefined && rightsHash !== sha256) {
         collector.add(
           `${path}.rights.exactHash`,
+          "hash_mismatch",
+          "must equal the asset sha256",
+        );
+      }
+      if (sha256 !== undefined && consentHash !== sha256) {
+        collector.add(
+          `${path}.consent.exactHash`,
           "hash_mismatch",
           "must equal the asset sha256",
         );
@@ -2012,18 +2284,41 @@ function prefixIssues(
   }));
 }
 
+function hasSameOrderedValues(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
+}
+
+function grantCoversTerritories(
+  granted: readonly string[],
+  requested: readonly string[],
+): boolean {
+  if (granted.includes("worldwide")) {
+    return true;
+  }
+  return requested.every(
+    (territory) => territory !== "worldwide" && granted.includes(territory),
+  );
+}
+
 /**
- * Runs structural publication preflight without proving bytes or private evidence.
+ * Checks a draft release candidate without authorizing or creating a release.
  *
- * Hash values are checked only for format and reference equality. The publisher
- * remains responsible for canonical serialization, byte hashing, reviewer
- * qualification, consent, and rights verification.
+ * Hash values are checked only for format and reference equality. Authoritative
+ * log access, canonical serialization, actual-byte hashing, trusted reviewer
+ * registration, grant authentication, and withdrawal checks remain mandatory
+ * publisher gates.
  */
-export function validatePublicationPreflight(
+export function validateReleaseCandidate(
   input: unknown,
-): ValidationResult<StructuralPublicationPreflight> {
+): ValidationResult<StructurallyValidReleaseCandidate> {
   try {
-    return validatePublicationPreflightInternal(input);
+    return validateReleaseCandidateInternal(input);
   } catch {
     return {
       ok: false,
@@ -2031,22 +2326,22 @@ export function validatePublicationPreflight(
         {
           path: "$",
           code: "unsafe_input",
-          message: "could not be inspected safely as a publication bundle",
+          message: "could not be inspected safely as a release candidate",
         },
       ],
     };
   }
 }
 
-function validatePublicationPreflightInternal(
+function validateReleaseCandidateInternal(
   input: unknown,
-): ValidationResult<StructuralPublicationPreflight> {
+): ValidationResult<StructurallyValidReleaseCandidate> {
   const collector = new Collector();
   const root = objectAt(
     input,
     "$",
-    ["signPack", "reviewEvents", "assetLedger"],
-    ["signPack", "reviewEvents", "assetLedger"],
+    ["signPack", "reviewEvents", "assetLedger", "releaseRequest"],
+    ["signPack", "reviewEvents", "assetLedger", "releaseRequest"],
     collector,
   );
   if (root === undefined) {
@@ -2055,11 +2350,9 @@ function validatePublicationPreflightInternal(
 
   const signPackResult = validateSignPack(root["signPack"]);
   const assetLedgerResult = validateAssetLedger(root["assetLedger"]);
+  const releaseRequestResult = validateReleaseRequest(root["releaseRequest"]);
   const reviewEventInputs = root["reviewEvents"];
 
-  if (!Array.isArray(reviewEventInputs)) {
-    collector.add("$.reviewEvents", "type", "must be an array");
-  }
   if (!signPackResult.ok) {
     collector.issues.push(
       ...prefixIssues(signPackResult.issues, "$.signPack"),
@@ -2069,6 +2362,14 @@ function validatePublicationPreflightInternal(
     collector.issues.push(
       ...prefixIssues(assetLedgerResult.issues, "$.assetLedger"),
     );
+  }
+  if (!releaseRequestResult.ok) {
+    collector.issues.push(
+      ...prefixIssues(releaseRequestResult.issues, "$.releaseRequest"),
+    );
+  }
+  if (!Array.isArray(reviewEventInputs)) {
+    collector.add("$.reviewEvents", "type", "must be an array");
   }
 
   const reviewEvents: ReviewEvent[] = [];
@@ -2088,6 +2389,7 @@ function validatePublicationPreflightInternal(
   if (
     !signPackResult.ok ||
     !assetLedgerResult.ok ||
+    !releaseRequestResult.ok ||
     collector.issues.length > 0
   ) {
     return { ok: false, issues: collector.issues };
@@ -2095,56 +2397,86 @@ function validatePublicationPreflightInternal(
 
   const signPack = signPackResult.value;
   const assetLedger = assetLedgerResult.value;
-  if (signPack.releaseStatus !== "published") {
+  const releaseRequest = releaseRequestResult.value;
+  const requestedTimestamp = Date.parse(releaseRequest.requestedAt);
+
+  if (
+    signPack.releaseStatus !== "draft" ||
+    signPack.publication !== undefined
+  ) {
     collector.add(
       "$.signPack.releaseStatus",
-      "publication_gate",
-      "publication validation requires a published pack",
+      "candidate_state",
+      "release candidates must remain draft and contain no publication metadata",
     );
   }
-  if (signPack.publication === undefined) {
+  if (signPack.developmentOnly) {
     collector.add(
-      "$.signPack.publication",
-      "publication_gate",
-      "publication metadata is required",
+      "$.signPack.developmentOnly",
+      "candidate_state",
+      "a development-only pack cannot become a release candidate",
     );
   }
-  if (assetLedger.packId !== signPack.packId) {
+  if (signPack.linguisticReviewStatus !== "human_reviewed") {
     collector.add(
-      "$.assetLedger.packId",
+      "$.signPack.linguisticReviewStatus",
+      "candidate_state",
+      "release candidates require completed human linguistic review",
+    );
+  }
+  if (
+    signPack.language.signedLanguage === "zxx" ||
+    signPack.language.region === "ZZ" ||
+    releaseRequest.scope.territories.includes("ZZ")
+  ) {
+    collector.add(
+      "$.signPack.language",
+      "synthetic_sentinel",
+      "zxx and ZZ are synthetic-test sentinels and cannot become candidates",
+    );
+  }
+  if (signPack.participants.reviewerRefs.length === 0) {
+    collector.add(
+      "$.signPack.participants.reviewerRefs",
+      "candidate_state",
+      "release candidates require a consent-safe reviewer reference",
+    );
+  }
+  signPack.segments.forEach((segment, index) => {
+    if (
+      segment.reviewStatus !== "approved" ||
+      segment.translationStatus === "proposed"
+    ) {
+      collector.add(
+        `$.signPack.segments[${index}]`,
+        "candidate_state",
+        "every candidate segment must have a final approved decision",
+      );
+    }
+  });
+
+  if (
+    assetLedger.packId !== signPack.packId ||
+    releaseRequest.packId !== signPack.packId
+  ) {
+    collector.add(
+      "$.releaseRequest.packId",
       "reference_mismatch",
-      "must reference the SignPack packId",
+      "request and ledger must reference the candidate SignPack",
     );
   }
   if (assetLedger.developmentOnly) {
     collector.add(
       "$.assetLedger.developmentOnly",
-      "publication_gate",
-      "a development-only asset ledger cannot authorize publication",
+      "candidate_state",
+      "a development-only ledger cannot support a release candidate",
     );
   }
-  if (
-    signPack.language.signedLanguage === "zxx" ||
-    signPack.language.region === "ZZ"
-  ) {
-    collector.add(
-      "$.signPack.language",
-      "synthetic_sentinel",
-      "zxx and ZZ are synthetic-test sentinels and cannot be published",
-    );
-  }
-
-  const releasedAt = signPack.publication?.releasedAt;
-  const releaseTimestamp =
-    releasedAt === undefined ? undefined : Date.parse(releasedAt);
-  if (
-    releaseTimestamp !== undefined &&
-    Date.parse(assetLedger.generatedAt) > releaseTimestamp
-  ) {
+  if (Date.parse(assetLedger.generatedAt) > requestedTimestamp) {
     collector.add(
       "$.assetLedger.generatedAt",
-      "release_time",
-      "asset ledger must be generated no later than publication",
+      "request_time",
+      "asset ledger must be generated no later than the release request",
     );
   }
 
@@ -2174,58 +2506,116 @@ function validatePublicationPreflightInternal(
         "review events must be supplied in strictly increasing sequence order",
       );
     }
+    if (Date.parse(event.occurredAt) > requestedTimestamp) {
+      collector.add(
+        `$.reviewEvents[${index}].occurredAt`,
+        "request_time",
+        "review events must occur no later than the release request",
+      );
+    }
     seenEventIds.add(event.eventId);
     seenSequences.add(event.sequence);
     previousSequence = event.sequence;
   });
 
-  const approvalIds = new Set(
-    signPack.publication?.humanApprovalEventIds ?? [],
-  );
-  for (const approvalId of approvalIds) {
-    const event = eventsById.get(approvalId);
+  const selectedIds = new Set(releaseRequest.selectedReviewEventIds);
+  for (const selectedId of selectedIds) {
+    const event = eventsById.get(selectedId);
     if (event === undefined) {
       collector.add(
-        "$.signPack.publication.humanApprovalEventIds",
+        "$.releaseRequest.selectedReviewEventIds",
         "unknown_event",
-        `references missing review event ${approvalId}`,
+        `references missing review event ${selectedId}`,
       );
-    } else {
-      if (event.actor.kind !== "human_reviewer") {
-        collector.add(
-          "$.signPack.publication.humanApprovalEventIds",
-          "authority",
-          `${approvalId} is not a human-review event`,
-        );
-      }
-      if (
-        event.reviewStatus !== "approved" ||
-        (event.action !== "approved" &&
-          event.action !== "unsupported_confirmed")
-      ) {
-        collector.add(
-          "$.signPack.publication.humanApprovalEventIds",
-          "authority",
-          `${approvalId} is not an approval decision`,
-        );
-      }
-      if (event.environment !== "production") {
-        collector.add(
-          "$.signPack.publication.humanApprovalEventIds",
-          "production_approval",
-          `${approvalId} is not a production review event`,
-        );
-      }
-      if (
-        releaseTimestamp !== undefined &&
-        Date.parse(event.occurredAt) > releaseTimestamp
-      ) {
-        collector.add(
-          "$.signPack.publication.humanApprovalEventIds",
-          "release_time",
-          `${approvalId} occurred after publication`,
-        );
-      }
+      continue;
+    }
+    if (
+      event.environment !== "production" ||
+      event.actor.kind !== "human_reviewer" ||
+      event.reviewStatus !== "approved" ||
+      (event.action !== "approved" &&
+        event.action !== "unsupported_confirmed")
+    ) {
+      collector.add(
+        "$.releaseRequest.selectedReviewEventIds",
+        "selected_decision",
+        `${selectedId} is not a final production human approval`,
+      );
+    }
+  }
+
+  const consumedSelectedIds = new Set<string>();
+  const usedAssetIds = new Set<string>();
+  signPack.segments.forEach((segment, index) => {
+    segment.assetIds.forEach((assetId) => usedAssetIds.add(assetId));
+    const suppliedHumanDecisions = reviewEvents
+      .filter(
+        (event) =>
+          event.packId === signPack.packId &&
+          event.segmentId === segment.segmentId &&
+          event.actor.kind === "human_reviewer" &&
+          event.action !== "proposal_created",
+      )
+      .sort((left, right) => left.sequence - right.sequence);
+    const latestDecision = suppliedHumanDecisions.at(-1);
+    const selectedForSegment = suppliedHumanDecisions.filter((event) =>
+      selectedIds.has(event.eventId),
+    );
+
+    if (
+      latestDecision === undefined ||
+      selectedForSegment.length !== 1 ||
+      selectedForSegment[0]?.eventId !== latestDecision.eventId
+    ) {
+      collector.add(
+        `$.signPack.segments[${index}]`,
+        "latest_decision",
+        "must select exactly the latest supplied human decision",
+      );
+      return;
+    }
+
+    const selected = selectedForSegment[0];
+    if (selected === undefined) {
+      return;
+    }
+    consumedSelectedIds.add(selected.eventId);
+    if (
+      selected.environment !== "production" ||
+      selected.reviewStatus !== "approved" ||
+      !signPack.participants.reviewerRefs.includes(selected.actor.actorRef)
+    ) {
+      collector.add(
+        `$.signPack.segments[${index}]`,
+        "selected_decision",
+        "selected decision must be a declared production reviewer approval",
+      );
+    }
+    const expectedAction =
+      segment.translationStatus === "mapped"
+        ? "approved"
+        : "unsupported_confirmed";
+    if (
+      selected.action !== expectedAction ||
+      selected.decisionHash !== segment.decisionHash ||
+      selected.translationStatus !== segment.translationStatus ||
+      !hasSameOrderedValues(selected.assetIds, segment.assetIds)
+    ) {
+      collector.add(
+        `$.signPack.segments[${index}]`,
+        "selected_decision",
+        "selected decision must exactly match segment state and assets",
+      );
+    }
+  });
+
+  for (const selectedId of selectedIds) {
+    if (!consumedSelectedIds.has(selectedId)) {
+      collector.add(
+        "$.releaseRequest.selectedReviewEventIds",
+        "selected_decision",
+        `${selectedId} does not select one candidate segment`,
+      );
     }
   }
 
@@ -2239,7 +2629,7 @@ function validatePublicationPreflightInternal(
     collector.add(
       "$.assetLedger.assets",
       "asset_set",
-      "must contain exactly the assets embedded in the SignPack",
+      "must contain exactly the assets embedded in the candidate SignPack",
     );
   }
 
@@ -2249,7 +2639,7 @@ function validatePublicationPreflightInternal(
       collector.add(
         "$.assetLedger.assets",
         "unknown_asset",
-        `is missing rights evidence for ${assetId}`,
+        `is missing structural evidence for ${assetId}`,
       );
       continue;
     }
@@ -2260,189 +2650,107 @@ function validatePublicationPreflightInternal(
       collector.add(
         "$.assetLedger.assets",
         "asset_mismatch",
-        `${assetId} path and hash must exactly match the SignPack`,
+        `${assetId} path and hash references must match the SignPack`,
       );
     }
     if (
       ledgerAsset.assetStatus !== "licensed" ||
       ledgerAsset.reviewStatus !== "approved" ||
-      ledgerAsset.consent.status !== "granted" ||
-      ledgerAsset.rights.offlinePlayback !== true
+      ledgerAsset.consent.status !== "granted"
     ) {
       collector.add(
         "$.assetLedger.assets",
-        "publication_gate",
-        `${assetId} lacks licensed, consented, human-approved offline rights`,
+        "candidate_rights",
+        `${assetId} lacks licensed, consented, human-approved state`,
       );
     }
-    const reviewerApproval = ledgerAsset.reviewerApproval;
-    const reviewerRef = reviewerApproval?.reviewerRef;
+    for (const signerRef of ledgerAsset.signerRefs) {
+      if (!signPack.participants.signerRefs.includes(signerRef)) {
+        collector.add(
+          "$.signPack.participants.signerRefs",
+          "signer_consent",
+          `does not declare asset signer ${signerRef}`,
+        );
+      }
+    }
+
+    const missingPurposes = releaseRequest.scope.purposes.filter(
+      (purpose) => !ledgerAsset.rights.grantedPurposes.includes(purpose),
+    );
+    const missingChannels = releaseRequest.scope.channels.filter(
+      (channel) => !ledgerAsset.rights.grantedChannels.includes(channel),
+    );
+    if (missingPurposes.length > 0 || missingChannels.length > 0) {
+      collector.add(
+        "$.assetLedger.assets",
+        "scope_coverage",
+        `${assetId} rights do not cover every requested purpose and channel`,
+      );
+    }
     if (
-      reviewerRef !== undefined &&
-      !signPack.participants.reviewerRefs.includes(reviewerRef)
+      !grantCoversTerritories(
+        ledgerAsset.rights.territories,
+        releaseRequest.scope.territories,
+      )
     ) {
       collector.add(
-        "$.signPack.participants.reviewerRefs",
-        "reference_mismatch",
-        `does not include asset reviewer ${reviewerRef}`,
+        "$.assetLedger.assets",
+        "scope_coverage",
+        `${assetId} rights do not cover every requested territory`,
       );
     }
-    if (reviewerApproval !== undefined) {
-      const approvalEvent = eventsById.get(reviewerApproval.eventId);
-      if (!approvalIds.has(reviewerApproval.eventId)) {
+    for (const operation of [
+      "modification",
+      "hosting",
+      "redistribution",
+      "sublicensing",
+    ] as const) {
+      if (
+        releaseRequest.scope[operation] &&
+        !ledgerAsset.rights[operation]
+      ) {
         collector.add(
           "$.assetLedger.assets",
-          "asset_approval",
-          `${assetId} reviewer event is not declared by the publication`,
+          "scope_coverage",
+          `${assetId} rights do not cover requested ${operation}`,
         );
       }
-      if (approvalEvent === undefined) {
-        collector.add(
-          "$.assetLedger.assets",
-          "asset_approval",
-          `${assetId} reviewer event does not resolve`,
-        );
-      } else {
-        if (
-          approvalEvent.environment !== "production" ||
-          approvalEvent.actor.kind !== "human_reviewer" ||
-          approvalEvent.reviewStatus !== "approved" ||
-          approvalEvent.action !== "approved"
-        ) {
-          collector.add(
-            "$.assetLedger.assets",
-            "asset_approval",
-            `${assetId} requires a production human-review event`,
-          );
-        }
-        if (approvalEvent.actor.actorRef !== reviewerApproval.reviewerRef) {
-          collector.add(
-            "$.assetLedger.assets",
-            "asset_approval",
-            `${assetId} reviewer reference does not match its review event`,
-          );
-        }
-        if (!approvalEvent.assetIds.includes(assetId)) {
-          collector.add(
-            "$.assetLedger.assets",
-            "asset_approval",
-            `${assetId} is absent from its exact reviewer approval event`,
-          );
-        }
-        if (
-          releaseTimestamp !== undefined &&
-          Date.parse(approvalEvent.occurredAt) > releaseTimestamp
-        ) {
-          collector.add(
-            "$.assetLedger.assets",
-            "release_time",
-            `${assetId} reviewer approval occurred after publication`,
-          );
-        }
-      }
+    }
+
+    const reviewerApproval = ledgerAsset.reviewerApproval;
+    if (reviewerApproval === undefined) {
+      collector.add(
+        "$.assetLedger.assets",
+        "asset_approval",
+        `${assetId} lacks an exact reviewer approval reference`,
+      );
+      continue;
+    }
+    const approvalEvent = eventsById.get(reviewerApproval.eventId);
+    if (
+      !selectedIds.has(reviewerApproval.eventId) ||
+      approvalEvent === undefined ||
+      approvalEvent.environment !== "production" ||
+      approvalEvent.actor.kind !== "human_reviewer" ||
+      approvalEvent.actor.actorRef !== reviewerApproval.reviewerRef ||
+      approvalEvent.reviewStatus !== "approved" ||
+      approvalEvent.action !== "approved" ||
+      !approvalEvent.assetIds.includes(assetId)
+    ) {
+      collector.add(
+        "$.assetLedger.assets",
+        "asset_approval",
+        `${assetId} must resolve to its selected production reviewer event`,
+      );
     }
   }
-
-  const usedAssetIds = new Set<string>();
-  signPack.segments.forEach((segment, index) => {
-    segment.assetIds.forEach((assetId) => usedAssetIds.add(assetId));
-    const approvals = reviewEvents.filter(
-      (event) =>
-        approvalIds.has(event.eventId) &&
-        event.packId === signPack.packId &&
-        event.segmentId === segment.segmentId &&
-        event.decisionHash === segment.decisionHash &&
-        event.translationStatus === segment.translationStatus &&
-        event.reviewStatus === "approved" &&
-        event.actor.kind === "human_reviewer" &&
-        event.environment === "production",
-    );
-    if (approvals.length !== 1) {
-      collector.add(
-        `$.signPack.segments[${index}]`,
-        "human_approval",
-        "requires exactly one declared human approval for its exact decision hash",
-      );
-    } else {
-      const approval = approvals[0];
-      if (
-        approval !== undefined &&
-        !signPack.participants.reviewerRefs.includes(approval.actor.actorRef)
-      ) {
-        collector.add(
-          "$.signPack.participants.reviewerRefs",
-          "reference_mismatch",
-          `does not include segment reviewer ${approval.actor.actorRef}`,
-        );
-      }
-      if (
-        segment.translationStatus === "mapped" &&
-        approval !== undefined &&
-        approval.action !== "approved"
-      ) {
-        collector.add(
-          `$.signPack.segments[${index}]`,
-          "review_action",
-          "mapped segments require an approved action",
-        );
-      }
-      if (
-        segment.translationStatus === "unsupported" &&
-        approval !== undefined &&
-        approval.action !== "unsupported_confirmed"
-      ) {
-        collector.add(
-          `$.signPack.segments[${index}]`,
-          "review_action",
-          "unsupported segments require human confirmation of caption fallback",
-        );
-      }
-      if (
-        approval !== undefined &&
-        (approval.assetIds.length !== segment.assetIds.length ||
-          approval.assetIds.some(
-            (assetId, assetIndex) => assetId !== segment.assetIds[assetIndex],
-          ))
-      ) {
-        collector.add(
-          `$.signPack.segments[${index}].assetIds`,
-          "reference_mismatch",
-          "must exactly match the assets in the human approval event",
-        );
-      }
-      const latestHumanDecision = reviewEvents
-        .filter(
-          (event) =>
-            event.packId === signPack.packId &&
-            event.segmentId === segment.segmentId &&
-            event.decisionHash === segment.decisionHash &&
-            event.actor.kind === "human_reviewer" &&
-            event.action !== "proposal_created",
-        )
-        .sort((left, right) => left.sequence - right.sequence)
-        .at(-1);
-      if (
-        approval !== undefined &&
-        latestHumanDecision !== undefined &&
-        latestHumanDecision.sequence > approval.sequence &&
-        (latestHumanDecision.action === "changes_requested" ||
-          latestHumanDecision.action === "rejected")
-      ) {
-        collector.add(
-          `$.signPack.segments[${index}]`,
-          "superseded_approval",
-          `approval was superseded by ${latestHumanDecision.action}`,
-        );
-      }
-    }
-  });
 
   for (const assetId of packAssetsById.keys()) {
     if (!usedAssetIds.has(assetId)) {
       collector.add(
         "$.signPack.assets",
         "unused_asset",
-        `published pack contains unreferenced asset ${assetId}`,
+        `candidate contains unreferenced asset ${assetId}`,
       );
     }
   }
@@ -2452,6 +2760,12 @@ function validatePublicationPreflightInternal(
   }
   return {
     ok: true,
-    value: { signPack, reviewEvents, assetLedger },
+    value: {
+      assurance: "structural_preflight_only",
+      signPack: signPack as DraftReleaseCandidateSignPack,
+      reviewEvents,
+      assetLedger,
+      releaseRequest,
+    },
   };
 }

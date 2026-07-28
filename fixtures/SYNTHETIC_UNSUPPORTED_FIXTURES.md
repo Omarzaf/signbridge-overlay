@@ -15,5 +15,8 @@ The SignPack is deliberately:
 - one `unsupported` segment with a visible caption fallback;
 - empty of signer, reviewer, and asset references.
 
+The companion release request only exercises the request schema. It cannot turn
+the synthetic SignPack into a valid release candidate.
+
 It must never be described as ASL-reviewed, educationally valid, publishable,
 or evidence of a working translation.
