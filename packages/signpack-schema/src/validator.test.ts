@@ -2,19 +2,24 @@ import { describe, expect, test } from "vitest";
 
 import assetLedgerSchema from "../../../contracts/asset-ledger.schema.json";
 import contestEvidenceSchema from "../../../contracts/contest-evidence.schema.json";
+import releaseRequestSchema from "../../../contracts/release-request.schema.json";
 import reviewEventSchema from "../../../contracts/review-event.schema.json";
 import runManifestSchema from "../../../contracts/run-manifest.schema.json";
 import signPackSchema from "../../../contracts/signpack.schema.json";
 import assetLedgerFixture from "../../../fixtures/synthetic-unsupported.asset-ledger.json";
 import contestEvidenceFixture from "../../../fixtures/synthetic-unsupported.contest-evidence.json";
+import releaseRequestFixture from "../../../fixtures/synthetic-unsupported.release-request.json";
 import reviewEventFixture from "../../../fixtures/synthetic-unsupported.review-event.json";
 import runManifestFixture from "../../../fixtures/synthetic-unsupported.run-manifest.json";
 import signPackFixture from "../../../fixtures/synthetic-unsupported.signpack.json";
 import {
   CONTEST_EVIDENCE_CATEGORIES,
+  RELEASE_CHANNELS,
+  RELEASE_PURPOSES,
   validateAssetLedger,
   validateContestEvidence,
-  validatePublicationPreflight,
+  validateReleaseCandidate,
+  validateReleaseRequest,
   validateReviewEvent,
   validateRunManifest,
   validateSignPack,
@@ -35,10 +40,9 @@ function issuePaths<T>(result: ValidationResult<T>): string[] {
   return result.ok ? [] : result.issues.map((issue) => issue.path);
 }
 
-function createStructuralPublicationPreflight(): MutableObject {
+function createStructuralReleaseCandidate(): MutableObject {
   // These are test-only structural sentinels, not reviewer or rights evidence.
   const pack = cloneObject(signPackFixture);
-  pack["releaseStatus"] = "published";
   pack["developmentOnly"] = false;
   pack["linguisticReviewStatus"] = "human_reviewed";
   pack["language"] = {
@@ -67,18 +71,6 @@ function createStructuralPublicationPreflight(): MutableObject {
       durationMs: 1000,
     },
   ];
-  pack["publication"] = {
-    releaseId:
-      "sha256:6666666666666666666666666666666666666666666666666666666666666666",
-    releasedAt: "2026-01-01T00:00:05.000Z",
-    publisherId: "publisher_synthetic001",
-    assetLedgerHash:
-      "sha256:7777777777777777777777777777777777777777777777777777777777777777",
-    reviewLogHash:
-      "sha256:8888888888888888888888888888888888888888888888888888888888888888",
-    humanApprovalEventIds: ["rev_syntheticapproval1"],
-  };
-
   const event: MutableObject = {
     schemaVersion: "1.0.0",
     eventId: "rev_syntheticapproval1",
@@ -110,23 +102,28 @@ function createStructuralPublicationPreflight(): MutableObject {
         "sha256:5555555555555555555555555555555555555555555555555555555555555555",
       ownerRef: "owner_synthetic00001",
       sourceRef: "source_synthetic0001",
+      signerRefs: ["signer_synthetic0001"],
       assetStatus: "licensed",
       reviewStatus: "approved",
       consent: {
         status: "granted",
         consentRef: "consent_synthetic001",
+        subjectSignerRefs: ["signer_synthetic0001"],
+        exactHash:
+          "sha256:5555555555555555555555555555555555555555555555555555555555555555",
       },
       rights: {
         grantRef: "rights_synthetic0001",
         exactHash:
           "sha256:5555555555555555555555555555555555555555555555555555555555555555",
         termModel: "irrevocable_exact_hash",
-        offlinePlayback: true,
-        publicDemo: true,
-        contestSubmission: true,
-        sponsorPublicity: true,
-        modification: false,
+        grantedPurposes: [...RELEASE_PURPOSES],
+        grantedChannels: [...RELEASE_CHANNELS],
         territories: ["US"],
+        modification: false,
+        hosting: true,
+        redistribution: true,
+        sublicensing: true,
       },
       attribution: "Synthetic structural test only",
       reviewerApproval: {
@@ -138,7 +135,25 @@ function createStructuralPublicationPreflight(): MutableObject {
     },
   ];
 
-  return { signPack: pack, reviewEvents: [event], assetLedger: ledger };
+  const releaseRequest = cloneObject(releaseRequestFixture);
+  releaseRequest["requestedAt"] = "2026-01-01T00:00:05.000Z";
+  releaseRequest["selectedReviewEventIds"] = ["rev_syntheticapproval1"];
+  releaseRequest["scope"] = {
+    purposes: [...RELEASE_PURPOSES],
+    channels: [...RELEASE_CHANNELS],
+    territories: ["US"],
+    modification: false,
+    hosting: true,
+    redistribution: true,
+    sublicensing: true,
+  };
+
+  return {
+    signPack: pack,
+    reviewEvents: [event],
+    assetLedger: ledger,
+    releaseRequest,
+  };
 }
 
 describe("machine-readable contracts", () => {
@@ -148,6 +163,7 @@ describe("machine-readable contracts", () => {
       reviewEventSchema,
       runManifestSchema,
       assetLedgerSchema,
+      releaseRequestSchema,
       contestEvidenceSchema,
     ]) {
       expect(schema.$schema).toBe(
@@ -161,6 +177,21 @@ describe("machine-readable contracts", () => {
     expect(
       contestEvidenceSchema.$defs.record.properties.category.enum,
     ).toEqual(CONTEST_EVIDENCE_CATEGORIES);
+  });
+
+  test("keeps release scope enums and JSON Schema in exact parity", () => {
+    expect(
+      releaseRequestSchema.$defs.releaseScope.properties.purposes.items.enum,
+    ).toEqual(RELEASE_PURPOSES);
+    expect(
+      releaseRequestSchema.$defs.releaseScope.properties.channels.items.enum,
+    ).toEqual(RELEASE_CHANNELS);
+    expect(
+      assetLedgerSchema.$defs.rights.properties.grantedPurposes.items.enum,
+    ).toEqual(RELEASE_PURPOSES);
+    expect(
+      assetLedgerSchema.$defs.rights.properties.grantedChannels.items.enum,
+    ).toEqual(RELEASE_CHANNELS);
   });
 
   test("encodes core authority and publication conditions in JSON Schema", () => {
@@ -183,6 +214,9 @@ describe("synthetic unsupported fixtures", () => {
     expect(validateReviewEvent(reviewEventFixture)).toMatchObject({ ok: true });
     expect(validateRunManifest(runManifestFixture)).toMatchObject({ ok: true });
     expect(validateAssetLedger(assetLedgerFixture)).toMatchObject({ ok: true });
+    expect(validateReleaseRequest(releaseRequestFixture)).toMatchObject({
+      ok: true,
+    });
     expect(validateContestEvidence(contestEvidenceFixture)).toMatchObject({
       ok: true,
     });
@@ -243,79 +277,19 @@ describe("synthetic unsupported fixtures", () => {
     expect(issueCodes(result)).toContain("authority");
   });
 
-  test("blocks publication without exact human approval and licensed assets", () => {
-    const pack = cloneObject(signPackFixture);
-    pack["releaseStatus"] = "published";
-    pack["developmentOnly"] = false;
-    pack["linguisticReviewStatus"] = "human_reviewed";
-    pack["participants"] = {
-      signerRefs: ["signer_synthetic0001"],
-      reviewerRefs: ["reviewer_synthetic001"],
-    };
-    const segment = (pack["segments"] as MutableObject[])[0]!;
-    segment["translationStatus"] = "mapped";
-    segment["reviewStatus"] = "approved";
-    segment["assetIds"] = ["ast_synthetic000001"];
-    delete segment["unsupportedReason"];
-    pack["assets"] = [
-      {
-        assetId: "ast_synthetic000001",
-        path: "assets/synthetic.webm",
-        sha256:
-          "sha256:5555555555555555555555555555555555555555555555555555555555555555",
-        mediaType: "video/webm",
-        durationMs: 1000,
-      },
-    ];
-    pack["publication"] = {
-      releaseId:
-        "sha256:6666666666666666666666666666666666666666666666666666666666666666",
-      releasedAt: "2026-01-01T00:00:05.000Z",
-      publisherId: "publisher_synthetic001",
-      assetLedgerHash:
-        "sha256:7777777777777777777777777777777777777777777777777777777777777777",
-      reviewLogHash:
-        "sha256:8888888888888888888888888888888888888888888888888888888888888888",
-      humanApprovalEventIds: ["rev_syntheticapproval1"],
-    };
+  test("rejects empty scope and any claim of release assurance", () => {
+    const request = cloneObject(releaseRequestFixture);
+    request["assurance"] = "release_authorized";
+    const scope = request["scope"] as MutableObject;
+    scope["purposes"] = [];
 
-    const ledger = cloneObject(assetLedgerFixture);
-    ledger["developmentOnly"] = false;
-    ledger["assets"] = [
-      {
-        assetId: "ast_synthetic000001",
-        path: "assets/synthetic.webm",
-        sha256:
-          "sha256:5555555555555555555555555555555555555555555555555555555555555555",
-        ownerRef: "owner_synthetic00001",
-        sourceRef: "source_synthetic0001",
-        assetStatus: "draft",
-        reviewStatus: "pending",
-        consent: { status: "pending" },
-        rights: {
-          offlinePlayback: false,
-          publicDemo: false,
-          contestSubmission: false,
-          sponsorPublicity: false,
-          modification: false,
-          territories: ["ZZ"],
-        },
-        attribution: "",
-      },
-    ];
-
-    const result = validatePublicationPreflight({
-      signPack: pack,
-      reviewEvents: [],
-      assetLedger: ledger,
-    });
-    expect(issueCodes(result)).toContain("unknown_event");
-    expect(issueCodes(result)).toContain("human_approval");
-    expect(issueCodes(result)).toContain("publication_gate");
+    const result = validateReleaseRequest(request);
+    expect(issueCodes(result)).toContain("enum");
+    expect(issueCodes(result)).toContain("min_items");
   });
 });
 
-describe("structural publication preflight", () => {
+describe("draft release candidate", () => {
   test("returns issues for malformed or hostile unknown input without throwing", () => {
     for (const value of [
       null,
@@ -323,7 +297,7 @@ describe("structural publication preflight", () => {
       {},
       { signPack: null, reviewEvents: "invalid", assetLedger: 42 },
     ]) {
-      const result = validatePublicationPreflight(value);
+      const result = validateReleaseCandidate(value);
       expect(result.ok).toBe(false);
     }
 
@@ -335,85 +309,88 @@ describe("structural publication preflight", () => {
         },
       },
     );
-    const hostileResult = validatePublicationPreflight(hostile);
+    const hostileResult = validateReleaseCandidate(hostile);
     expect(issueCodes(hostileResult)).toContain("unsafe_input");
   });
 
   test("accepts a complete structural candidate without authorizing release", () => {
     expect(
-      validatePublicationPreflight(createStructuralPublicationPreflight()),
-    ).toMatchObject({ ok: true });
+      validateReleaseCandidate(createStructuralReleaseCandidate()),
+    ).toMatchObject({
+      ok: true,
+      value: { assurance: "structural_preflight_only" },
+    });
   });
 
   test("rejects synthetic language sentinels and non-production approvals", () => {
-    const sentinel = createStructuralPublicationPreflight();
+    const sentinel = createStructuralReleaseCandidate();
     const language = (sentinel["signPack"] as MutableObject)[
       "language"
     ] as MutableObject;
     language["signedLanguage"] = "zxx";
     language["region"] = "ZZ";
-    expect(issueCodes(validatePublicationPreflight(sentinel))).toContain(
+    expect(issueCodes(validateReleaseCandidate(sentinel))).toContain(
       "synthetic_sentinel",
     );
 
-    const development = createStructuralPublicationPreflight();
+    const development = createStructuralReleaseCandidate();
     const event = (development["reviewEvents"] as MutableObject[])[0]!;
     event["environment"] = "development";
-    expect(issueCodes(validatePublicationPreflight(development))).toContain(
-      "production_approval",
+    expect(issueCodes(validateReleaseCandidate(development))).toContain(
+      "selected_decision",
     );
   });
 
-  test("rejects approvals and ledgers created after release", () => {
-    const lateApproval = createStructuralPublicationPreflight();
+  test("rejects approvals and ledgers created after the request", () => {
+    const lateApproval = createStructuralReleaseCandidate();
     const event = (lateApproval["reviewEvents"] as MutableObject[])[0]!;
     event["occurredAt"] = "2026-01-01T00:00:06.000Z";
-    expect(issueCodes(validatePublicationPreflight(lateApproval))).toContain(
-      "release_time",
+    expect(issueCodes(validateReleaseCandidate(lateApproval))).toContain(
+      "request_time",
     );
 
-    const lateLedger = createStructuralPublicationPreflight();
+    const lateLedger = createStructuralReleaseCandidate();
     const ledger = lateLedger["assetLedger"] as MutableObject;
     ledger["generatedAt"] = "2026-01-01T00:00:06.000Z";
-    expect(issueCodes(validatePublicationPreflight(lateLedger))).toContain(
-      "release_time",
+    expect(issueCodes(validateReleaseCandidate(lateLedger))).toContain(
+      "request_time",
     );
   });
 
   test("requires an exact declared asset reviewer event", () => {
-    const unresolved = createStructuralPublicationPreflight();
+    const unresolved = createStructuralReleaseCandidate();
     const unresolvedAsset = (
       (unresolved["assetLedger"] as MutableObject)["assets"] as MutableObject[]
     )[0]!;
     const unresolvedApproval =
       unresolvedAsset["reviewerApproval"] as MutableObject;
     unresolvedApproval["eventId"] = "rev_missingapproval001";
-    expect(issueCodes(validatePublicationPreflight(unresolved))).toContain(
+    expect(issueCodes(validateReleaseCandidate(unresolved))).toContain(
       "asset_approval",
     );
 
-    const mismatch = createStructuralPublicationPreflight();
+    const mismatch = createStructuralReleaseCandidate();
     const mismatchAsset = (
       (mismatch["assetLedger"] as MutableObject)["assets"] as MutableObject[]
     )[0]!;
     const mismatchApproval = mismatchAsset["reviewerApproval"] as MutableObject;
     mismatchApproval["reviewerRef"] = "reviewer_synthetic002";
-    expect(issueCodes(validatePublicationPreflight(mismatch))).toContain(
+    expect(issueCodes(validateReleaseCandidate(mismatch))).toContain(
       "asset_approval",
     );
 
-    const omittedAsset = createStructuralPublicationPreflight();
+    const omittedAsset = createStructuralReleaseCandidate();
     const approvalEvent = (
       omittedAsset["reviewEvents"] as MutableObject[]
     )[0]!;
     approvalEvent["assetIds"] = ["ast_synthetic000002"];
-    expect(issueCodes(validatePublicationPreflight(omittedAsset))).toContain(
+    expect(issueCodes(validateReleaseCandidate(omittedAsset))).toContain(
       "asset_approval",
     );
   });
 
   test("rejects an approval superseded by a later human rejection", () => {
-    const candidate = createStructuralPublicationPreflight();
+    const candidate = createStructuralReleaseCandidate();
     const approval = (candidate["reviewEvents"] as MutableObject[])[0]!;
     const rejection = cloneObject(approval);
     rejection["eventId"] = "rev_syntheticrejected1";
@@ -424,8 +401,126 @@ describe("structural publication preflight", () => {
     rejection["reasonCode"] = "human_reviewer_rejected";
     (candidate["reviewEvents"] as MutableObject[]).push(rejection);
 
-    expect(issueCodes(validatePublicationPreflight(candidate))).toContain(
-      "superseded_approval",
+    expect(issueCodes(validateReleaseCandidate(candidate))).toContain(
+      "latest_decision",
+    );
+  });
+
+  test("rejects a published pack because only the publisher may publish", () => {
+    const candidate = createStructuralReleaseCandidate();
+    const pack = candidate["signPack"] as MutableObject;
+    pack["releaseStatus"] = "published";
+    pack["publication"] = {
+      releaseId:
+        "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+      releasedAt: "2026-01-01T00:00:06.000Z",
+      publisherId: "publisher_synthetic001",
+      assetLedgerHash:
+        "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+      reviewLogHash:
+        "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+      humanApprovalEventIds: ["rev_syntheticapproval1"],
+    };
+
+    expect(issueCodes(validateReleaseCandidate(candidate))).toContain(
+      "candidate_state",
+    );
+  });
+
+  test("rejects each requested scope dimension absent from a grant", () => {
+    const missingPurpose = createStructuralReleaseCandidate();
+    const purposeRights = (
+      (
+        (missingPurpose["assetLedger"] as MutableObject)[
+          "assets"
+        ] as MutableObject[]
+      )[0]!["rights"] as MutableObject
+    );
+    purposeRights["grantedPurposes"] = ["product_playback"];
+    expect(issueCodes(validateReleaseCandidate(missingPurpose))).toContain(
+      "scope_coverage",
+    );
+
+    const missingChannel = createStructuralReleaseCandidate();
+    const channelRights = (
+      (
+        (missingChannel["assetLedger"] as MutableObject)[
+          "assets"
+        ] as MutableObject[]
+      )[0]!["rights"] as MutableObject
+    );
+    channelRights["grantedChannels"] = ["pwa"];
+    expect(issueCodes(validateReleaseCandidate(missingChannel))).toContain(
+      "scope_coverage",
+    );
+
+    const missingTerritory = createStructuralReleaseCandidate();
+    const territoryRights = (
+      (
+        (missingTerritory["assetLedger"] as MutableObject)[
+          "assets"
+        ] as MutableObject[]
+      )[0]!["rights"] as MutableObject
+    );
+    territoryRights["territories"] = ["CA"];
+    expect(issueCodes(validateReleaseCandidate(missingTerritory))).toContain(
+      "scope_coverage",
+    );
+
+    const missingOperation = createStructuralReleaseCandidate();
+    const operationRights = (
+      (
+        (missingOperation["assetLedger"] as MutableObject)[
+          "assets"
+        ] as MutableObject[]
+      )[0]!["rights"] as MutableObject
+    );
+    operationRights["hosting"] = false;
+    expect(issueCodes(validateReleaseCandidate(missingOperation))).toContain(
+      "scope_coverage",
+    );
+  });
+
+  test("rejects signer, consent, and exact-hash mismatches", () => {
+    const signerMismatch = createStructuralReleaseCandidate();
+    const asset = (
+      (signerMismatch["assetLedger"] as MutableObject)[
+        "assets"
+      ] as MutableObject[]
+    )[0]!;
+    const consent = asset["consent"] as MutableObject;
+    consent["subjectSignerRefs"] = ["signer_synthetic0002"];
+    expect(issueCodes(validateReleaseCandidate(signerMismatch))).toContain(
+      "signer_consent",
+    );
+
+    const hashMismatch = createStructuralReleaseCandidate();
+    const hashAsset = (
+      (hashMismatch["assetLedger"] as MutableObject)[
+        "assets"
+      ] as MutableObject[]
+    )[0]!;
+    const hashConsent = hashAsset["consent"] as MutableObject;
+    hashConsent["exactHash"] =
+      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    expect(issueCodes(validateReleaseCandidate(hashMismatch))).toContain(
+      "hash_mismatch",
+    );
+  });
+
+  test("treats a later different-hash human decision as superseding", () => {
+    const candidate = createStructuralReleaseCandidate();
+    const approval = (candidate["reviewEvents"] as MutableObject[])[0]!;
+    const laterDecision = cloneObject(approval);
+    laterDecision["eventId"] = "rev_syntheticnewhash01";
+    laterDecision["sequence"] = 2;
+    laterDecision["occurredAt"] = "2026-01-01T00:00:04.750Z";
+    laterDecision["decisionHash"] =
+      "sha256:9999999999999999999999999999999999999999999999999999999999999999";
+    (candidate["reviewEvents"] as MutableObject[]).push(laterDecision);
+
+    expect(issueCodes(validateReleaseCandidate(candidate))).toContain(
+      "latest_decision",
     );
   });
 });

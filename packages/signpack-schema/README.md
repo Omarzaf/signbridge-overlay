@@ -5,13 +5,17 @@ timing, review, rights, provenance, compatibility, and hash references.
 
 ## Security boundary
 
-`validatePublicationPreflight` is a fail-closed structural preflight. It checks
-schema shape, state transitions, cross-references, approval authority, release
-ordering, and exact lowercase SHA-256 reference syntax.
+`validateReleaseCandidate` is a fail-closed structural preflight for a draft
+SignPack, its supplied review events and asset ledger, and an explicit
+`ReleaseRequest`. It checks state transitions, cross-references, latest selected
+review decisions, signer/consent sets, requested-scope coverage, and exact
+lowercase SHA-256 reference syntax.
 
-Success is **not release authorization**. The preflight does not hash files,
-canonicalize JSON, verify signatures, establish
-reviewer qualification, or prove that referenced consent and rights records
-exist. A formatted or cross-matched hash is not cryptographically validated.
-Publisher canonical hashes, actual-byte verification, a trusted reviewer
-registry, and private grants remain hard blockers before any release.
+Successful output is marked `assurance: structural_preflight_only`. It is
+**not release authorization** and cannot emit `releaseStatus: published` or
+publication metadata. The preflight does not have authoritative log access,
+hash files, canonicalize JSON, verify signatures, authenticate grants, establish
+reviewer qualification, or perform current withdrawal checks. Publisher
+canonical hashes, actual-byte verification, a trusted reviewer registry,
+authenticated private grants, and withdrawal checks remain hard blockers before
+any release.
