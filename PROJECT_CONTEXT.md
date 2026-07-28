@@ -22,6 +22,10 @@ The initial signing representation is rights-cleared upper-body human video.
 Avatar synthesis and unconstrained text-to-sign generation are out of scope for
 the first release.
 
+The provisional first-language scope is American Sign Language in the United
+States (`ase`, region `US`). Specific community and regional variation remains
+unresolved until a qualified Deaf ASL reviewer approves it.
+
 ## Systems of record
 
 - `contracts/`: machine-readable publication and review contracts.

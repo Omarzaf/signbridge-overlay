@@ -40,8 +40,8 @@ corepack pnpm test
 corepack pnpm build
 ```
 
-Until the dependency gate is approved, these run the dependency-free baseline
-validator.
+The root manifest contains the exact approved development tools. Production
+dependencies and workspace-local dependency additions remain approval-gated.
 
 ## Invariants
 

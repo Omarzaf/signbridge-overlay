@@ -3,14 +3,26 @@
   "version": "0.0.0",
   "private": true,
   "description": "A lightweight, human-reviewed sign-language overlay protocol and runtime for online and offline video.",
+  "type": "module",
+  "license": "Apache-2.0",
   "packageManager": "pnpm@11.10.0",
   "engines": {
-    "node": "22.x"
+    "node": ">=22.12 <23"
   },
   "scripts": {
-    "build": "node tools/verify-baseline.mjs",
-    "lint": "node --check tools/verify-baseline.mjs && node --check tests/baseline/verify-baseline.test.mjs && node tools/verify-baseline.mjs",
-    "test": "node --test tests/baseline/verify-baseline.test.mjs",
-    "verify": "node tools/verify-baseline.mjs && node --test tests/baseline/verify-baseline.test.mjs"
+    "build": "pnpm typecheck",
+    "lint": "node --check tools/verify-baseline.mjs && node --check tests/baseline/verify-baseline.test.mjs && pnpm typecheck",
+    "test": "pnpm test:foundation && pnpm test:unit",
+    "test:e2e": "playwright test",
+    "test:foundation": "node --test tests/baseline/verify-baseline.test.mjs",
+    "test:unit": "vitest run",
+    "typecheck": "tsc -p tsconfig.json",
+    "verify": "node tools/verify-baseline.mjs && pnpm lint && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.0",
+    "typescript": "6.0.2",
+    "vite": "8.0.10",
+    "vitest": "4.1.6"
   }
 }

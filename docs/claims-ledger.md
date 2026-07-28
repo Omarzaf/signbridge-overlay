@@ -22,7 +22,7 @@ system remains a human decision.
 | User count and high-level breakdown | Participant evidence register | Consented aggregate | Data | Not established |
 | Feedback/testimonials and awareness of organizer sharing | Consent and feedback register | Consented excerpt or aggregate | Research | Not established |
 | Production logs, API records, and dashboard screenshots | Operations evidence register | Sanitized evidence manifest | DevOps | Not established |
-| Entrant structure, representative, and corporate ID if required | Entrant evidence register | Submission declaration | Human entrant | Not established |
+| Individual entrant structure and representative declaration | Entrant evidence register | Submission declaration | Human entrant | In progress |
 | Private customer/financial evidence and live-demo readiness | Organizer-response register | Readiness statement | Human entrant | Not established |
 | Language accuracy | Review and asset-rights register | Exact released pack hash and limitations | Human reviewer | Not established |
 | Synchronization | Test evidence register | Drift and interaction report | QA | Not established |

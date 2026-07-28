@@ -1,14 +1,15 @@
 # License Policy
 
-The intended product is open source, but no final code license has been selected
-yet. Until a root `LICENSE` file is approved and added, this repository must not
-be represented as licensed for public redistribution.
+The source code is licensed under Apache License 2.0 as recorded in the root
+`LICENSE` file. This selection does not license signing media, participant
+records, trademarks, or third-party content.
 
 Code and signing media will use separate terms:
 
-- Source code: a human-approved open-source license.
+- Source code: Apache License 2.0.
 - Signing media: explicit asset-level grants covering the intended distribution.
 - Third-party material: its original compatible license and required notices.
 - Consent records: private evidence, never a substitute for copyright ownership.
 
-The license decision must be recorded before the first public push or release.
+Every public release must retain the root license and applicable third-party
+notices.

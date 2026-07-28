@@ -45,14 +45,14 @@ afterEach(async () => {
   );
 });
 
-test("accepts the committed dependency-free foundation", async () => {
+test("accepts the approved development-tool foundation", async () => {
   const result = await runVerifier(repositoryRoot);
 
   assert.equal(result.exitCode, 0, result.stderr);
-  assert.match(result.stdout, /Baseline verification passed/u);
+  assert.match(result.stdout, /Foundation verification passed/u);
 });
 
-test("rejects dependencies in a nested workspace manifest", async () => {
+test("rejects production dependencies in a nested workspace manifest", async () => {
   const root = await copyRepository();
   const manifestPath = join(root, "apps", "test-surface", "package.json");
   await mkdir(dirname(manifestPath), { recursive: true });
@@ -68,22 +68,35 @@ test("rejects dependencies in a nested workspace manifest", async () => {
   const result = await runVerifier(root);
 
   assert.notEqual(result.exitCode, 0);
-  assert.match(result.stderr, /has dependencies before dependency approval/u);
+  assert.match(result.stderr, /unapproved production field dependencies/u);
 });
 
-test("rejects external package records in the lockfile", async () => {
+test("rejects an unapproved root development tool", async () => {
   const root = await copyRepository();
-  const lockfilePath = join(root, "pnpm-lock.yaml");
-  const lockfile = await readFile(lockfilePath, "utf8");
-  await writeFile(lockfilePath, `${lockfile}\npackages:\n  surprise: {}\n`);
+  const manifestPath = join(root, "package.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  manifest.devDependencies.surprise = "1.0.0";
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
   const result = await runVerifier(root);
 
   assert.notEqual(result.exitCode, 0);
-  assert.match(
-    result.stderr,
-    /pnpm-lock\.yaml contains external package records/u,
+  assert.match(result.stderr, /unapproved development tool surprise/u);
+});
+
+test("rejects a lockfile missing an approved tool version", async () => {
+  const root = await copyRepository();
+  const lockfilePath = join(root, "pnpm-lock.yaml");
+  const lockfile = await readFile(lockfilePath, "utf8");
+  await writeFile(
+    lockfilePath,
+    lockfile.replace("specifier: 6.0.2", "specifier: 0.0.0"),
   );
+
+  const result = await runVerifier(root);
+
+  assert.notEqual(result.exitCode, 0);
+  assert.match(result.stderr, /missing approved typescript@6\.0\.2/u);
 });
 
 test("rejects nested private environment files", async () => {

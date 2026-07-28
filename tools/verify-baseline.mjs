@@ -10,12 +10,14 @@ const requiredFiles = [
   "AGENTS.md",
   "PROJECT_CONTEXT.md",
   "HANDOFF.md",
+  "LICENSE",
   "README.md",
   "LICENSE_POLICY.md",
   "PREEXISTING_ASSETS.md",
   "THIRD_PARTY_NOTICES.md",
   "docs/architecture.md",
   "docs/linguistic-safety.md",
+  "docs/language-scope.md",
   "docs/licensing-and-consent.md",
   "docs/privacy.md",
   "docs/security.md",
@@ -24,9 +26,15 @@ const requiredFiles = [
   "packages/signpack-publisher/README.md",
 ];
 
-const dependencyFields = [
+const approvedRootDevDependencies = new Map([
+  ["@playwright/test", "1.61.0"],
+  ["typescript", "6.0.2"],
+  ["vite", "8.0.10"],
+  ["vitest", "4.1.6"],
+]);
+
+const productionDependencyFields = [
   "dependencies",
-  "devDependencies",
   "optionalDependencies",
   "peerDependencies",
   "bundledDependencies",
@@ -79,6 +87,7 @@ const packageFiles = files.filter((file) => basename(file) === "package.json");
 
 for (const packageFile of packageFiles) {
   const fileName = relative(rootPath, packageFile);
+  const isRootManifest = packageFile === join(rootPath, "package.json");
   let manifest;
 
   try {
@@ -88,15 +97,50 @@ for (const packageFile of packageFiles) {
     continue;
   }
 
-  for (const dependencyField of dependencyFields) {
+  for (const dependencyField of productionDependencyFields) {
     const value = manifest[dependencyField];
     const entryCount = Array.isArray(value)
       ? value.length
       : Object.keys(value ?? {}).length;
     if (entryCount > 0) {
       errors.push(
-        `${fileName} has ${dependencyField} before dependency approval`,
+        `${fileName} has unapproved production field ${dependencyField}`,
       );
+    }
+  }
+
+  const devDependencies = manifest.devDependencies ?? {};
+  if (
+    typeof devDependencies !== "object" ||
+    devDependencies === null ||
+    Array.isArray(devDependencies)
+  ) {
+    errors.push(`${fileName} has malformed devDependencies`);
+    continue;
+  }
+
+  const devDependencyEntries = Object.entries(devDependencies);
+  if (!isRootManifest && devDependencyEntries.length > 0) {
+    errors.push(`${fileName} has workspace-local devDependencies`);
+    continue;
+  }
+
+  if (isRootManifest) {
+    for (const [name, version] of devDependencyEntries) {
+      const approvedVersion = approvedRootDevDependencies.get(name);
+      if (approvedVersion === undefined) {
+        errors.push(`${fileName} has unapproved development tool ${name}`);
+      } else if (version !== approvedVersion) {
+        errors.push(
+          `${fileName} must pin ${name} to approved version ${approvedVersion}`,
+        );
+      }
+    }
+
+    for (const name of approvedRootDevDependencies.keys()) {
+      if (!(name in devDependencies)) {
+        errors.push(`${fileName} is missing approved development tool ${name}`);
+      }
     }
   }
 }
@@ -114,16 +158,12 @@ if (!String(rootPackageJson.packageManager).startsWith("pnpm@")) {
 }
 
 const lockfile = await readFile(new URL("pnpm-lock.yaml", root), "utf8");
-if (/^(?:packages|snapshots):\s*$/mu.test(lockfile)) {
-  errors.push("pnpm-lock.yaml contains external package records");
-}
-
-if (
-  /^\s{4}(?:dependencies|devDependencies|optionalDependencies|peerDependencies):\s*$/mu.test(
-    lockfile,
-  )
-) {
-  errors.push("pnpm-lock.yaml contains importer dependencies");
+for (const [name, version] of approvedRootDevDependencies) {
+  const key = name.startsWith("@") ? `'${name}'` : name;
+  const lockfileEntry = `${key}:\n        specifier: ${version}`;
+  if (!lockfile.includes(lockfileEntry)) {
+    errors.push(`pnpm-lock.yaml is missing approved ${name}@${version}`);
+  }
 }
 
 for (const file of files) {
@@ -147,6 +187,6 @@ if (errors.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(
-    `Baseline verification passed: ${requiredFiles.length} contracts, ${packageFiles.length} package manifest(s), and ${files.length} repository files checked; no dependencies or media present.`,
+    `Foundation verification passed: ${requiredFiles.length} contracts, ${packageFiles.length} package manifest(s), ${approvedRootDevDependencies.size} approved development tools, and ${files.length} repository files checked; no production dependencies or media present.`,
   );
 }

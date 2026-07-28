@@ -13,10 +13,10 @@ The product will have two independent paths:
 
 ## Current status
 
-This repository contains the dependency-free project foundation only. It does
-not yet contain a working viewer, sign-language corpus, production dependency,
-or approved signing asset. Nothing here is ready for educational or
-accessibility use.
+This repository contains the project foundation and approved development
+toolchain only. It does not yet contain a working viewer, sign-language corpus,
+production dependency, or approved signing asset. Nothing here is ready for
+educational or accessibility use.
 
 ## Read order
 
@@ -36,15 +36,14 @@ accessibility use.
 - `apps/reviewer`: human review console.
 - `services/authoring`: server-side Gemini authoring support.
 
-## Baseline verification
+## Foundation verification
 
-The repository currently has no third-party dependencies.
+The repository has no production dependencies. Its exact development-only tools
+are recorded in `THIRD_PARTY_NOTICES.md` and enforced by the foundation checker.
 
 ```bash
 node tools/verify-baseline.mjs
 ```
-
-Once the approved Node 22 and pnpm toolchain is available:
 
 ```bash
 corepack pnpm verify
@@ -52,5 +51,5 @@ corepack pnpm test
 corepack pnpm build
 ```
 
-Production dependencies, language scope, code licensing, signing-media rights,
-cloud access, and deployment each require a separate human approval gate.
+Production dependencies, signing-media rights, cloud access, and deployment
+each require a separate human approval gate.

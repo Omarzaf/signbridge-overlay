@@ -29,13 +29,11 @@ contact information.
 
 Withdrawn assets are blocked from every new release and pack replacement.
 
-Before Gate 1 can pass, the owner must select and document one release model:
+The selected release model is an irrevocable distribution grant for each exact
+released asset hash. Withdrawal blocks all future packs and replacements but
+cannot recall already distributed offline copies. Agreements must state this
+clearly before signature.
 
-1. An irrevocable distribution grant for each exact released asset hash, with
-   withdrawal stopping future packs but not already distributed copies; or
-2. A revocable grant with a signed revocation manifest, takedown and replacement
-   procedure, viewer enforcement where connectivity exists, and an explicit
-   acknowledgement that fully offline copies cannot be guaranteed recall.
-
-Until that decision and its agreements exist, no signing asset may be released
-or used in a public demo.
+This policy selection is not itself a media grant. Until signed agreements exist
+for the actual signer, rights owner, reviewer, source video, and exact usage
+scope, no signing asset may be released or used in a public demo.
