@@ -14,6 +14,7 @@ export {
   RELEASE_CHANNELS,
   RELEASE_PURPOSES,
   SCHEMA_VERSION,
+  SEMVER_PATTERN,
 } from "./types";
 
 export type {

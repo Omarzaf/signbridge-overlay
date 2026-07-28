@@ -1,4 +1,5 @@
 import {
+  SEMVER_PATTERN,
   validateSignPack,
   type CaptionFallback,
   type SignPack,
@@ -96,9 +97,6 @@ export interface CaptionFallbackPlaybackState {
 export type PlaybackState =
   | ActiveSignPlaybackState
   | CaptionFallbackPlaybackState;
-
-const SEMVER_PATTERN =
-  /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
 
 const ASSET_PLAYBACK_STATES = new Set<AssetPlaybackState>([
   "ready",
@@ -386,6 +384,15 @@ export function preparePlaybackModel(
     assetStates,
     runtimeVersion,
   } = captured;
+  // Integrity is decided before the manifest is cloned or parsed: bytes that
+  // failed their integrity check are never interpreted.
+  if (manifestIntegrity === "unverified") {
+    return blockedModel("unverified_manifest");
+  }
+  if (manifestIntegrity === "corrupt") {
+    return blockedModel("corrupt_manifest");
+  }
+
   let detachedManifest: unknown;
   let validation: ReturnType<typeof validateSignPack>;
   try {
@@ -393,13 +400,6 @@ export function preparePlaybackModel(
     validation = validateSignPack(detachedManifest);
   } catch {
     return blockedModel("invalid_manifest");
-  }
-
-  if (manifestIntegrity === "unverified") {
-    return blockedModel("unverified_manifest");
-  }
-  if (manifestIntegrity === "corrupt") {
-    return blockedModel("corrupt_manifest");
   }
 
   if (!validation.ok) {

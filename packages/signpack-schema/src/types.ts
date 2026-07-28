@@ -1,5 +1,12 @@
 export const SCHEMA_VERSION = "1.0.0" as const;
 
+/**
+ * Exact three-part semantic version without prerelease or build metadata.
+ * Leading zeroes are rejected so each identifier has one canonical spelling.
+ */
+export const SEMVER_PATTERN =
+  /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
+
 export type SchemaVersion = typeof SCHEMA_VERSION;
 export type ReleaseStatus = "draft" | "published";
 export type LinguisticReviewStatus = "not_reviewed" | "human_reviewed";

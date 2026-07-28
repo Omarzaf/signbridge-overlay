@@ -4,6 +4,7 @@ import {
   RELEASE_CHANNELS,
   RELEASE_PURPOSES,
   SCHEMA_VERSION,
+  SEMVER_PATTERN,
   type AssetLedger,
   type ContestEvidence,
   type ContestEvidenceCategory,
@@ -19,7 +20,6 @@ import {
 } from "./types";
 
 const HASH_PATTERN = /^sha256:[0-9a-f]{64}$/u;
-const SEMVER_PATTERN = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
 const ISO_639_3_PATTERN = /^[a-z]{3}$/u;
 const REGION_PATTERN = /^[A-Z]{2}$/u;
 const BCP_47_PATTERN = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/u;
