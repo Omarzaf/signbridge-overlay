@@ -14,13 +14,19 @@ The product will have two independent paths:
 ## Current status
 
 This repository contains the project foundation, approved development
-toolchain, and Gate 1 structural contracts. The contract package validates
-draft SignPacks, review events, asset ledgers, release requests, reproducibility
-records, and contest-evidence records without a production dependency.
+toolchain, Gate 1 structural contracts, and the Goal 2 headless playback core.
+The contract package validates draft SignPacks, review events, asset ledgers,
+release requests, reproducibility records, and contest-evidence records without
+a production dependency.
 
-It does not yet contain a working viewer, sign-language corpus, qualified
-reviewer approval, or licensed signing asset. The committed fixtures are
-synthetic, non-linguistic, and development-only. Nothing here is ready for
+The playback core prepares an immutable local-readiness model, maps exact media
+snapshots to immutable signing or caption-fallback states, and exposes a
+framework-free controller. It contains no DOM rendering, video adapter, media
+element integration, timer, network call, or cloud dependency.
+
+The repository still does not contain a working viewer, sign-language corpus,
+qualified reviewer approval, or licensed signing asset. Playback tests use
+synthetic, in-memory contract data and no media bytes. Nothing here is ready for
 educational or accessibility use.
 
 ## Read order
@@ -32,12 +38,16 @@ educational or accessibility use.
 5. [docs/licensing-and-consent.md](docs/licensing-and-consent.md)
 6. [contracts/README.md](contracts/README.md)
 7. [packages/signpack-schema/README.md](packages/signpack-schema/README.md)
-8. [HANDOFF.md](HANDOFF.md)
+8. [packages/sync-engine/README.md](packages/sync-engine/README.md)
+9. [packages/runtime/README.md](packages/runtime/README.md)
+10. [HANDOFF.md](HANDOFF.md)
 
-## Planned surfaces
+## Surfaces
 
-- `packages/runtime`: framework-free overlay component.
-- `packages/sync-engine`: deterministic video-clock synchronization.
+- `packages/sync-engine`: implemented deterministic, headless video-clock
+  synchronization.
+- `packages/runtime`: implemented framework-free headless controller; overlay
+  rendering remains future work.
 - `apps/pwa`: offline and small-phone experience.
 - `apps/extension`: Chrome Manifest V3 adapter.
 - `apps/reviewer`: human review console.

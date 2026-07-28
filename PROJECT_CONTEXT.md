@@ -15,7 +15,8 @@ The planned system separates publication from playback:
 2. A human reviewer edits or rejects every proposal.
 3. A separate strict publisher combines an approved decision with current
    licensed-asset evidence and creates a hashed SignPack.
-4. A cloud-independent runtime synchronizes approved signing media to a video.
+4. A cloud-independent, headless playback core maps source-media snapshots to
+   signing or caption-fallback state.
 5. PWA and Chrome adapters connect that runtime to local files and web video.
 
 The initial signing representation is rights-cleared upper-body human video.
@@ -58,6 +59,32 @@ human release authority.
 - `docs/accessibility-acceptance.md`: surface and signing-presentation acceptance.
 - `docs/private-evidence-system.md`: access-controlled evidence requirements.
 - `docs/release-certificate-template.md`: exact-artifact release decision.
+
+## Goal 2 headless playback boundary
+
+The dependency-free sync engine and framework-free runtime controller implement
+the playback decision layer without adding a viewer or weakening publication
+authority.
+
+- `preparePlaybackModel` is the only constructor for module-issued, immutable
+  ready models. Its checks establish only supplied local playback
+  readiness, never publication assurance.
+- Each resolution uses the exact source fingerprint and current media snapshot
+  as its sole clock. There is no timer, elapsed-time accumulator, rounding, or
+  inferred drift clock.
+- Segment ranges are half-open and searched deterministically. Pause, seek, and
+  rate changes recalculate from the new snapshot.
+- Source captions remain available for active signing and every fail-visible
+  state.
+- Version one activates signing only at `1x` for one duration-compatible,
+  locally ready asset. Unsupported, corrupt, withdrawn, missing, incompatible,
+  source-mismatched, and gap states fall back to captions.
+
+The core has no DOM, media-element ownership, network access, or cloud
+dependency. HTML5 and YouTube adapters, overlay rendering, offline storage, and
+browser/device accessibility evidence remain future work. Synthetic in-memory
+tests do not represent a real language selection, reviewed media, or a
+published product.
 
 ## Privacy and release boundary
 

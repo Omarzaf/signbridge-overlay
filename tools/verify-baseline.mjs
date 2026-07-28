@@ -29,6 +29,7 @@ const requiredFiles = [
   "docs/security.md",
   "docs/claims-ledger.md",
   "docs/decisions/0003-structural-preflight-is-not-publication.md",
+  "docs/decisions/0004-media-clock-is-authoritative.md",
   "contracts/README.md",
   "contracts/asset-ledger.schema.json",
   "contracts/contest-evidence.schema.json",
@@ -43,6 +44,12 @@ const requiredFiles = [
   "packages/signpack-schema/src/validator.test.ts",
   "packages/signpack-schema/src/validator.ts",
   "packages/signpack-publisher/README.md",
+  "packages/sync-engine/README.md",
+  "packages/sync-engine/src/index.ts",
+  "packages/sync-engine/src/index.test.ts",
+  "packages/runtime/README.md",
+  "packages/runtime/src/index.ts",
+  "packages/runtime/src/index.test.ts",
 ];
 
 const approvedRootDevDependencies = new Map([

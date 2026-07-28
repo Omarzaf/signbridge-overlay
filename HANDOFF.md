@@ -2,8 +2,9 @@
 
 ## Goal
 
-Complete the Gate 1 structural contract foundation, verify it independently,
-and stop before any real signing content or public release.
+Complete Goal 2: add and independently verify a deterministic, framework-free
+offline playback core using synthetic SignPack data, and stop before DOM
+integration, real signing content, cloud access, or public release.
 
 ## Decisions already made
 
@@ -31,15 +32,27 @@ and stop before any real signing content or public release.
 - Synthetic `zxx`/`ZZ` fixtures exercise unsupported-content behavior without
   representing a real signed language or including media.
 - Every schema identifies its structural-only assurance boundary.
-- An independent moderator found no remaining contract blocker or warning.
+- A dependency-free sync engine prepares immutable, module-issued playback
+  models and resolves exact media snapshots through half-open segment
+  lookup.
+- A framework-free runtime controller stores and publishes immutable playback
+  state without owning a DOM, media element, timer, network request, or cloud
+  service.
+- Forged models, malformed or hostile inputs, source replacement, unsupported
+  content, unavailable assets, incompatible segments, and unapproved playback
+  rates fail visibly to caption-preserving states.
+- Synthetic tests cover fractional boundaries, seeks, pauses, rate recovery,
+  model and state mutation, changing getters, subscriber ordering, and
+  timer-free operation.
 
 ## Current verification
 
 ```text
 pnpm verify
 Passed the dependency/media foundation policy, strict type checking, build,
-5/5 foundation tests, and 34/34 contract tests. Browser binaries have not been
-downloaded.
+5/5 foundation tests, and 68/68 Vitest tests: 34 contract plus 34 Goal 2
+sync/runtime tests. Baseline verification requires 43 project files. Browser
+binaries have not been downloaded.
 
 Workspace control-plane tests
 Passed 12/12. SignBridge resolves through the registry. Workspace doctor reports
@@ -68,11 +81,13 @@ toolchain/CI gate.
 
 ## Explicitly not delivered
 
-- No runtime overlay, synchronization engine, PWA, Chrome extension, reviewer
+- No DOM overlay, HTML5 or YouTube adapter, PWA, Chrome extension, reviewer
   console, Gemini authoring service, or publisher implementation.
 - No real ASL mapping, signer video, source video, participant record, consent
   grant, rights grant, cloud resource, or contest submission.
 - No push, merge, deployment, browser download, outreach, or production action.
 
-The next implementation slice begins only after the reviewer, language scope,
-golden content, exact-hash grants, and private evidence system are confirmed.
+A future synthetic-only slice may connect adapters and an accessible overlay to
+the headless core. Any real-language pack, public demo, or accessibility claim
+remains blocked on the reviewer, final language scope, rights-cleared golden
+content, exact-hash grants, and private evidence system.
