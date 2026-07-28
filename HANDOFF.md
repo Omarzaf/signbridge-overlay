@@ -2,8 +2,8 @@
 
 ## Goal
 
-Establish the approved development toolchain and policy boundaries before
-contract specialists begin.
+Complete the Gate 1 structural contract foundation, verify it independently,
+and stop before any real signing content or public release.
 
 ## Decisions already made
 
@@ -19,21 +19,27 @@ contract specialists begin.
 - The entrant is treated as an individual unless the owner changes that choice.
 - TypeScript, Vite, Vitest, and Playwright are approved development-only tools.
 
+## Delivered
+
+- Six versioned JSON Schemas cover SignPacks, review events, asset ledgers,
+  release requests, authoring run manifests, and contest evidence.
+- Dependency-free TypeScript validators enforce timing, state, provenance,
+  exact-hash references, review-event finality, signer/consent relationships,
+  rights scope, contest-record integrity, and malformed-input handling.
+- `validateReleaseCandidate` accepts only structurally valid draft candidates
+  and returns `assurance: structural_preflight_only`; it cannot publish.
+- Synthetic `zxx`/`ZZ` fixtures exercise unsupported-content behavior without
+  representing a real signed language or including media.
+- Every schema identifies its structural-only assurance boundary.
+- An independent moderator found no remaining contract blocker or warning.
+
 ## Current verification
 
 ```text
-node tools/verify-baseline.mjs
-Foundation policy now permits only the exact approved root development tools and
-continues to reject production dependencies, workspace-local dependencies,
-private environment files, and media.
-
-node --test tests/baseline/verify-baseline.test.mjs
-Passed 5/5, including rejection of production dependencies, unapproved
-development tools, lockfile drift, and nested private environment files.
-
 pnpm verify
-Passed type checking, foundation policy, Node tests, and the empty pre-contract
-Vitest suite. Browser binaries have not been downloaded.
+Passed the dependency/media foundation policy, strict type checking, build,
+5/5 foundation tests, and 34/34 contract tests. Browser binaries have not been
+downloaded.
 
 Workspace control-plane tests
 Passed 12/12. SignBridge resolves through the registry. Workspace doctor remains
@@ -58,3 +64,14 @@ toolchain/CI gate.
 6. Confirm whether individual entrant status requires any contributor or
    publicity agreement.
 7. Verify the declared Node 22/pnpm toolchain in CI.
+
+## Explicitly not delivered
+
+- No runtime overlay, synchronization engine, PWA, Chrome extension, reviewer
+  console, Gemini authoring service, or publisher implementation.
+- No real ASL mapping, signer video, source video, participant record, consent
+  grant, rights grant, cloud resource, or contest submission.
+- No push, merge, deployment, browser download, outreach, or production action.
+
+The next implementation slice begins only after the reviewer, language scope,
+golden content, exact-hash grants, and private evidence system are confirmed.

@@ -32,8 +32,23 @@ unresolved until a qualified Deaf ASL reviewer approves it.
 - SignPack manifest: timing, language, provenance, review, rights, and hashes.
 - Asset ledger: ownership, consent, license, attribution, and withdrawal state.
 - Review-event log: proposal and human decision history.
+- Release request: exact selected decisions and intended distribution scope.
 - Run manifest: reproducible authoring metadata without sensitive content.
+- Contest-evidence ledger: privacy-safe claim categories and evidence pointers.
 - Git: source, documentation, tests, and release history.
+
+## Gate 1 implementation boundary
+
+The six JSON Schemas and dependency-free TypeScript validators now enforce the
+locally knowable structure and cross-document relationships. The public API is
+`validateReleaseCandidate`, and successful output is explicitly labeled
+`structural_preflight_only`.
+
+A release candidate must remain a draft. The validator cannot publish it,
+authenticate a reviewer or grant, inspect authoritative private records, hash
+actual media bytes, prove an evidence claim, or determine current withdrawal
+state. Those operations remain hard gates for the future publisher and the
+human release authority.
 
 ## Gate 1 operating contracts
 

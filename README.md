@@ -13,9 +13,14 @@ The product will have two independent paths:
 
 ## Current status
 
-This repository contains the project foundation and approved development
-toolchain only. It does not yet contain a working viewer, sign-language corpus,
-production dependency, or approved signing asset. Nothing here is ready for
+This repository contains the project foundation, approved development
+toolchain, and Gate 1 structural contracts. The contract package validates
+draft SignPacks, review events, asset ledgers, release requests, reproducibility
+records, and contest-evidence records without a production dependency.
+
+It does not yet contain a working viewer, sign-language corpus, qualified
+reviewer approval, or licensed signing asset. The committed fixtures are
+synthetic, non-linguistic, and development-only. Nothing here is ready for
 educational or accessibility use.
 
 ## Read order
@@ -25,7 +30,9 @@ educational or accessibility use.
 3. [docs/architecture.md](docs/architecture.md)
 4. [docs/linguistic-safety.md](docs/linguistic-safety.md)
 5. [docs/licensing-and-consent.md](docs/licensing-and-consent.md)
-6. [HANDOFF.md](HANDOFF.md)
+6. [contracts/README.md](contracts/README.md)
+7. [packages/signpack-schema/README.md](packages/signpack-schema/README.md)
+8. [HANDOFF.md](HANDOFF.md)
 
 ## Planned surfaces
 

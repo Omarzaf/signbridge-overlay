@@ -1,6 +1,11 @@
 # Test Strategy
 
-Planned suites cover:
+Current automated coverage includes foundation-policy tests and dependency-free
+contract validation for malformed input, timing, state transitions,
+cross-document references, reviewer finality, signer/consent linkage, release
+scope, rights coverage, and contest-evidence integrity.
+
+Planned runtime suites cover:
 
 - Contract and hash validation.
 - Media-clock synchronization and drift.
