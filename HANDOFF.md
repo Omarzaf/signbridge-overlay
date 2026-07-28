@@ -18,10 +18,21 @@ implementation begins.
 
 ```text
 node tools/verify-baseline.mjs
-Passed under the available Node 24 runtime: required contracts present; no
-dependencies or media detected. Node 22 remains the declared target and must be
-verified in the approved toolchain/CI gate.
+Passed under the available Node 24 runtime: 15 required contracts, all workspace
+package manifests, the lockfile, and repository files checked; no dependencies
+or media detected.
+
+node --test tests/baseline/verify-baseline.test.mjs
+Passed 4/4, including rejection of nested dependencies, external lockfile
+packages, and nested private environment files.
+
+Workspace control-plane tests
+Passed 12/12. SignBridge resolves through the registry. Workspace doctor remains
+at 0 errors and 13 pre-existing warnings.
 ```
+
+Node 22 remains the declared target and must be verified in the approved
+toolchain/CI gate.
 
 ## Remaining human gates
 
