@@ -89,6 +89,140 @@
       "pattern": "^[a-z][a-z0-9_]{2,63}$"
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "actor": {
+            "properties": {
+              "kind": {
+                "const": "authoring_service"
+              }
+            },
+            "required": ["kind"]
+          }
+        },
+        "required": ["actor"]
+      },
+      "then": {
+        "properties": {
+          "action": {
+            "const": "proposal_created"
+          },
+          "reviewStatus": {
+            "const": "pending"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "proposal_created"
+          }
+        },
+        "required": ["action"]
+      },
+      "then": {
+        "properties": {
+          "actor": {
+            "properties": {
+              "kind": {
+                "const": "authoring_service"
+              }
+            }
+          },
+          "reviewStatus": {
+            "const": "pending"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "approved"
+          }
+        },
+        "required": ["action"]
+      },
+      "then": {
+        "properties": {
+          "actor": {
+            "properties": {
+              "kind": {
+                "const": "human_reviewer"
+              }
+            }
+          },
+          "translationStatus": {
+            "const": "mapped"
+          },
+          "reviewStatus": {
+            "const": "approved"
+          },
+          "assetIds": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "unsupported_confirmed"
+          }
+        },
+        "required": ["action"]
+      },
+      "then": {
+        "required": ["reasonCode"],
+        "properties": {
+          "actor": {
+            "properties": {
+              "kind": {
+                "const": "human_reviewer"
+              }
+            }
+          },
+          "translationStatus": {
+            "const": "unsupported"
+          },
+          "reviewStatus": {
+            "const": "approved"
+          },
+          "assetIds": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "enum": ["changes_requested", "rejected"]
+          }
+        },
+        "required": ["action"]
+      },
+      "then": {
+        "required": ["reasonCode"],
+        "properties": {
+          "actor": {
+            "properties": {
+              "kind": {
+                "const": "human_reviewer"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "hash": {
       "type": "string",

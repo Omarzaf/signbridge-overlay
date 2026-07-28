@@ -1,13 +1,13 @@
 export {
   validateAssetLedger,
   validateContestEvidence,
-  validatePublicationBundle,
+  validatePublicationPreflight,
   validateReviewEvent,
   validateRunManifest,
   validateSignPack,
 } from "./validator";
 
-export { SCHEMA_VERSION } from "./types";
+export { CONTEST_EVIDENCE_CATEGORIES, SCHEMA_VERSION } from "./types";
 
 export type {
   AssetLedger,
@@ -21,7 +21,7 @@ export type {
   ContestMeasurement,
   Environment,
   LinguisticReviewStatus,
-  PublicationBundle,
+  PublicationPreflightInput,
   ReleaseStatus,
   ReviewAction,
   ReviewEvent,
@@ -33,7 +33,7 @@ export type {
   SignPackPublication,
   SignPackSegment,
   TranslationStatus,
-  ValidatedPublicationBundle,
+  StructuralPublicationPreflight,
   ValidationIssue,
   ValidationResult,
 } from "./types";

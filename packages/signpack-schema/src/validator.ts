@@ -1,13 +1,13 @@
 import {
+  CONTEST_EVIDENCE_CATEGORIES,
   SCHEMA_VERSION,
   type AssetLedger,
   type ContestEvidence,
   type ContestEvidenceCategory,
-  type PublicationBundle,
   type ReviewEvent,
   type RunManifest,
   type SignPack,
-  type ValidatedPublicationBundle,
+  type StructuralPublicationPreflight,
   type ValidationIssue,
   type ValidationResult,
 } from "./types";
@@ -43,6 +43,23 @@ const ID_PATTERNS = {
   rights: /^rights_[a-z0-9]{12,64}$/u,
   entrant: /^entrant_[a-z0-9]{12,64}$/u,
 } as const;
+
+const COUNT_CATEGORY_UNITS: Partial<
+  Record<ContestEvidenceCategory, "users" | "participants" | "calls">
+> = {
+  gemini_production_call: "calls",
+  user_count: "users",
+  pilot_participant_count: "participants",
+};
+
+const MONEY_CATEGORIES = new Set<ContestEvidenceCategory>([
+  "arms_length_revenue",
+  "monthly_arms_length_revenue",
+  "related_party_revenue",
+  "expense",
+  "marketing_spend",
+  "refund",
+]);
 
 type JsonObject = Record<string, unknown>;
 
@@ -1733,22 +1750,22 @@ function expectedMeasurement(
   readonly kind: "count" | "money" | "artifact";
   readonly unit?: "users" | "participants" | "calls";
 } {
-  switch (category) {
-    case "user_count":
-      return { kind: "count", unit: "users" };
-    case "pilot_participant_count":
-      return { kind: "count", unit: "participants" };
-    case "gemini_call":
-      return { kind: "count", unit: "calls" };
-    case "revenue":
-    case "expense":
-    case "refund":
-      return { kind: "money" };
-    case "testimonial_consent":
-    case "deployment":
-    case "demo":
-      return { kind: "artifact" };
+  const countUnit = COUNT_CATEGORY_UNITS[category];
+  if (countUnit !== undefined) {
+    return { kind: "count", unit: countUnit };
   }
+  return MONEY_CATEGORIES.has(category)
+    ? { kind: "money" }
+    : { kind: "artifact" };
+}
+
+function isContestEvidenceCategory(
+  value: string | undefined,
+): value is ContestEvidenceCategory {
+  return (
+    value !== undefined &&
+    (CONTEST_EVIDENCE_CATEGORIES as readonly string[]).includes(value)
+  );
 }
 
 export function validateContestEvidence(
@@ -1838,19 +1855,12 @@ export function validateContestEvidence(
       }
       evidenceIds.add(evidenceId);
     }
-    const category = stringAt(record, "category", path, collector, {
-      enumValues: [
-        "user_count",
-        "pilot_participant_count",
-        "revenue",
-        "expense",
-        "refund",
-        "testimonial_consent",
-        "gemini_call",
-        "deployment",
-        "demo",
-      ],
-    }) as ContestEvidenceCategory | undefined;
+    const categoryValue = stringAt(record, "category", path, collector, {
+      enumValues: CONTEST_EVIDENCE_CATEGORIES,
+    });
+    const category = isContestEvidenceCategory(categoryValue)
+      ? categoryValue
+      : undefined;
     stringAt(record, "status", path, collector, {
       enumValues: ["draft", "verified", "withdrawn"],
     });
@@ -1904,7 +1914,7 @@ export function validateContestEvidence(
           `${category} evidence requires unit ${expected.unit}`,
         );
       }
-      const isMoney = ["revenue", "expense", "refund"].includes(category);
+      const isMoney = MONEY_CATEGORIES.has(category);
       if (isMoney && relationship === "not_applicable") {
         collector.add(
           `${path}.relationship`,
@@ -1919,18 +1929,39 @@ export function validateContestEvidence(
           "non-financial evidence must use not_applicable",
         );
       }
-      if (category === "testimonial_consent" && consentRef === undefined) {
+      if (
+        (category === "arms_length_revenue" ||
+          category === "monthly_arms_length_revenue") &&
+        relationship !== "arms_length"
+      ) {
+        collector.add(
+          `${path}.relationship`,
+          "relationship",
+          `${category} evidence must be explicitly arms_length`,
+        );
+      }
+      if (
+        category === "related_party_revenue" &&
+        relationship !== "related_party"
+      ) {
+        collector.add(
+          `${path}.relationship`,
+          "relationship",
+          "related_party_revenue evidence must be explicitly related_party",
+        );
+      }
+      if (category === "feedback_consent" && consentRef === undefined) {
         collector.add(
           `${path}.consentRef`,
           "consent_gate",
-          "testimonial evidence requires a private consent reference",
+          "feedback evidence requires a private consent reference",
         );
       }
-      if (category !== "testimonial_consent" && consentRef !== undefined) {
+      if (category !== "feedback_consent" && consentRef !== undefined) {
         collector.add(
           `${path}.consentRef`,
           "state_conflict",
-          "consentRef is reserved for testimonial evidence",
+          "consentRef is reserved for feedback evidence",
         );
       }
     }
@@ -1981,14 +2012,52 @@ function prefixIssues(
   }));
 }
 
-export function validatePublicationBundle(
-  input: PublicationBundle,
-): ValidationResult<ValidatedPublicationBundle> {
-  const signPackResult = validateSignPack(input.signPack);
-  const assetLedgerResult = validateAssetLedger(input.assetLedger);
-  const collector = new Collector();
+/**
+ * Runs structural publication preflight without proving bytes or private evidence.
+ *
+ * Hash values are checked only for format and reference equality. The publisher
+ * remains responsible for canonical serialization, byte hashing, reviewer
+ * qualification, consent, and rights verification.
+ */
+export function validatePublicationPreflight(
+  input: unknown,
+): ValidationResult<StructuralPublicationPreflight> {
+  try {
+    return validatePublicationPreflightInternal(input);
+  } catch {
+    return {
+      ok: false,
+      issues: [
+        {
+          path: "$",
+          code: "unsafe_input",
+          message: "could not be inspected safely as a publication bundle",
+        },
+      ],
+    };
+  }
+}
 
-  if (!Array.isArray(input.reviewEvents)) {
+function validatePublicationPreflightInternal(
+  input: unknown,
+): ValidationResult<StructuralPublicationPreflight> {
+  const collector = new Collector();
+  const root = objectAt(
+    input,
+    "$",
+    ["signPack", "reviewEvents", "assetLedger"],
+    ["signPack", "reviewEvents", "assetLedger"],
+    collector,
+  );
+  if (root === undefined) {
+    return { ok: false, issues: collector.issues };
+  }
+
+  const signPackResult = validateSignPack(root["signPack"]);
+  const assetLedgerResult = validateAssetLedger(root["assetLedger"]);
+  const reviewEventInputs = root["reviewEvents"];
+
+  if (!Array.isArray(reviewEventInputs)) {
     collector.add("$.reviewEvents", "type", "must be an array");
   }
   if (!signPackResult.ok) {
@@ -2003,8 +2072,8 @@ export function validatePublicationBundle(
   }
 
   const reviewEvents: ReviewEvent[] = [];
-  if (Array.isArray(input.reviewEvents)) {
-    input.reviewEvents.forEach((event, index) => {
+  if (Array.isArray(reviewEventInputs)) {
+    reviewEventInputs.forEach((event, index) => {
       const result = validateReviewEvent(event);
       if (result.ok) {
         reviewEvents.push(result.value);
@@ -2054,6 +2123,30 @@ export function validatePublicationBundle(
       "a development-only asset ledger cannot authorize publication",
     );
   }
+  if (
+    signPack.language.signedLanguage === "zxx" ||
+    signPack.language.region === "ZZ"
+  ) {
+    collector.add(
+      "$.signPack.language",
+      "synthetic_sentinel",
+      "zxx and ZZ are synthetic-test sentinels and cannot be published",
+    );
+  }
+
+  const releasedAt = signPack.publication?.releasedAt;
+  const releaseTimestamp =
+    releasedAt === undefined ? undefined : Date.parse(releasedAt);
+  if (
+    releaseTimestamp !== undefined &&
+    Date.parse(assetLedger.generatedAt) > releaseTimestamp
+  ) {
+    collector.add(
+      "$.assetLedger.generatedAt",
+      "release_time",
+      "asset ledger must be generated no later than publication",
+    );
+  }
 
   const eventsById = new Map(reviewEvents.map((event) => [event.eventId, event]));
   const seenEventIds = new Set<string>();
@@ -2097,12 +2190,42 @@ export function validatePublicationBundle(
         "unknown_event",
         `references missing review event ${approvalId}`,
       );
-    } else if (event.actor.kind !== "human_reviewer") {
-      collector.add(
-        "$.signPack.publication.humanApprovalEventIds",
-        "authority",
-        `${approvalId} is not a human-review event`,
-      );
+    } else {
+      if (event.actor.kind !== "human_reviewer") {
+        collector.add(
+          "$.signPack.publication.humanApprovalEventIds",
+          "authority",
+          `${approvalId} is not a human-review event`,
+        );
+      }
+      if (
+        event.reviewStatus !== "approved" ||
+        (event.action !== "approved" &&
+          event.action !== "unsupported_confirmed")
+      ) {
+        collector.add(
+          "$.signPack.publication.humanApprovalEventIds",
+          "authority",
+          `${approvalId} is not an approval decision`,
+        );
+      }
+      if (event.environment !== "production") {
+        collector.add(
+          "$.signPack.publication.humanApprovalEventIds",
+          "production_approval",
+          `${approvalId} is not a production review event`,
+        );
+      }
+      if (
+        releaseTimestamp !== undefined &&
+        Date.parse(event.occurredAt) > releaseTimestamp
+      ) {
+        collector.add(
+          "$.signPack.publication.humanApprovalEventIds",
+          "release_time",
+          `${approvalId} occurred after publication`,
+        );
+      }
     }
   }
 
@@ -2152,7 +2275,8 @@ export function validatePublicationBundle(
         `${assetId} lacks licensed, consented, human-approved offline rights`,
       );
     }
-    const reviewerRef = ledgerAsset.reviewerApproval?.reviewerRef;
+    const reviewerApproval = ledgerAsset.reviewerApproval;
+    const reviewerRef = reviewerApproval?.reviewerRef;
     if (
       reviewerRef !== undefined &&
       !signPack.participants.reviewerRefs.includes(reviewerRef)
@@ -2162,6 +2286,60 @@ export function validatePublicationBundle(
         "reference_mismatch",
         `does not include asset reviewer ${reviewerRef}`,
       );
+    }
+    if (reviewerApproval !== undefined) {
+      const approvalEvent = eventsById.get(reviewerApproval.eventId);
+      if (!approvalIds.has(reviewerApproval.eventId)) {
+        collector.add(
+          "$.assetLedger.assets",
+          "asset_approval",
+          `${assetId} reviewer event is not declared by the publication`,
+        );
+      }
+      if (approvalEvent === undefined) {
+        collector.add(
+          "$.assetLedger.assets",
+          "asset_approval",
+          `${assetId} reviewer event does not resolve`,
+        );
+      } else {
+        if (
+          approvalEvent.environment !== "production" ||
+          approvalEvent.actor.kind !== "human_reviewer" ||
+          approvalEvent.reviewStatus !== "approved" ||
+          approvalEvent.action !== "approved"
+        ) {
+          collector.add(
+            "$.assetLedger.assets",
+            "asset_approval",
+            `${assetId} requires a production human-review event`,
+          );
+        }
+        if (approvalEvent.actor.actorRef !== reviewerApproval.reviewerRef) {
+          collector.add(
+            "$.assetLedger.assets",
+            "asset_approval",
+            `${assetId} reviewer reference does not match its review event`,
+          );
+        }
+        if (!approvalEvent.assetIds.includes(assetId)) {
+          collector.add(
+            "$.assetLedger.assets",
+            "asset_approval",
+            `${assetId} is absent from its exact reviewer approval event`,
+          );
+        }
+        if (
+          releaseTimestamp !== undefined &&
+          Date.parse(approvalEvent.occurredAt) > releaseTimestamp
+        ) {
+          collector.add(
+            "$.assetLedger.assets",
+            "release_time",
+            `${assetId} reviewer approval occurred after publication`,
+          );
+        }
+      }
     }
   }
 
@@ -2176,7 +2354,8 @@ export function validatePublicationBundle(
         event.decisionHash === segment.decisionHash &&
         event.translationStatus === segment.translationStatus &&
         event.reviewStatus === "approved" &&
-        event.actor.kind === "human_reviewer",
+        event.actor.kind === "human_reviewer" &&
+        event.environment === "production",
     );
     if (approvals.length !== 1) {
       collector.add(
@@ -2229,6 +2408,30 @@ export function validatePublicationBundle(
           `$.signPack.segments[${index}].assetIds`,
           "reference_mismatch",
           "must exactly match the assets in the human approval event",
+        );
+      }
+      const latestHumanDecision = reviewEvents
+        .filter(
+          (event) =>
+            event.packId === signPack.packId &&
+            event.segmentId === segment.segmentId &&
+            event.decisionHash === segment.decisionHash &&
+            event.actor.kind === "human_reviewer" &&
+            event.action !== "proposal_created",
+        )
+        .sort((left, right) => left.sequence - right.sequence)
+        .at(-1);
+      if (
+        approval !== undefined &&
+        latestHumanDecision !== undefined &&
+        latestHumanDecision.sequence > approval.sequence &&
+        (latestHumanDecision.action === "changes_requested" ||
+          latestHumanDecision.action === "rejected")
+      ) {
+        collector.add(
+          `$.signPack.segments[${index}]`,
+          "superseded_approval",
+          `approval was superseded by ${latestHumanDecision.action}`,
         );
       }
     }
