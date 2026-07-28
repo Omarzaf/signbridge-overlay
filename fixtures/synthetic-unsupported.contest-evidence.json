@@ -6,7 +6,23 @@
     "type": "individual",
     "entrantRef": "entrant_synthetic001"
   },
-  "records": [],
+  "records": [
+    {
+      "evidenceId": "evd_synthetic001",
+      "category": "education_category_relevance",
+      "status": "evidence_linked",
+      "periodStart": "2026-01-01T00:00:00.000Z",
+      "periodEnd": "2026-01-31T23:59:59.000Z",
+      "sourceHash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "metricDefinition": "Presence of a synthetic public category statement; this does not verify the claim.",
+      "evidenceMethod": "public_artifact",
+      "relationship": "not_applicable",
+      "measurement": {
+        "kind": "artifact",
+        "artifactHash": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+      }
+    }
+  ],
   "privacy": {
     "containsPersonalData": false,
     "containsTranscript": false,

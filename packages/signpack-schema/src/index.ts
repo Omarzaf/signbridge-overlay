@@ -10,6 +10,7 @@ export {
 
 export {
   CONTEST_EVIDENCE_CATEGORIES,
+  CONTEST_EVIDENCE_METHODS,
   RELEASE_CHANNELS,
   RELEASE_PURPOSES,
   SCHEMA_VERSION,
@@ -23,7 +24,9 @@ export type {
   ConsentStatus,
   ContestEvidence,
   ContestEvidenceCategory,
+  ContestEvidenceMethod,
   ContestEvidenceRecord,
+  ContestEvidenceStatus,
   ContestMeasurement,
   DraftReleaseCandidateSignPack,
   Environment,

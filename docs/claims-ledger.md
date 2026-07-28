@@ -4,6 +4,17 @@ Product and contest claims must be backed by named evidence. Private evidence
 locations below are logical records outside Git; their actual access-controlled
 system remains a human decision.
 
+Machine records use `draft`, `evidence_linked`, or `withdrawn`.
+`evidence_linked` means only that a privacy-safe source hash and evidence method
+have been recorded; it does not verify the source, calculation, or claim.
+Every record declares a public-safe metric definition and one method:
+`aggregate_reconciliation`, `platform_export`, `runtime_log`,
+`public_artifact`, or `human_declaration`. Monthly arms-length revenue also
+declares `periodMonth`, matching both ends of its UTC reporting window. Duplicate
+active claim scopes and overlapping active financial windows are invalid;
+withdrawn audit entries do not block a replacement. Raw financial, participant,
+consent, and account evidence remains outside Git.
+
 | Requirement | Private evidence location | Public artifact | Owner | Status |
 | --- | --- | --- | --- | --- |
 | Education & Human Potential category and relevance | N/A | Product statement and demo | Writer | Not established |

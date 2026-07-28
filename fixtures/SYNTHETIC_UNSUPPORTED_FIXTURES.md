@@ -18,5 +18,9 @@ The SignPack is deliberately:
 The companion release request only exercises the request schema. It cannot turn
 the synthetic SignPack into a valid release candidate.
 
+The contest ledger's `evidence_linked` example points only to a synthetic,
+privacy-safe artifact hash. It does not verify a contest claim and contains no
+private evidence.
+
 It must never be described as ASL-reviewed, educationally valid, publishable,
 or evidence of a working translation.

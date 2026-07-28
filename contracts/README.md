@@ -11,4 +11,6 @@ This directory contains versioned machine-readable structural contracts:
 
 Schemas keep translation, human review, asset licensing, consent, and requested
 release scope independent. They are structural preflight contracts, not proof
-of reviewer authority, rights, canonical bytes, or release authorization.
+of reviewer authority, rights, canonical bytes, contest-claim truth, or release
+authorization. Contest `evidence_linked` status records only a privacy-safe
+evidence pointer and method; private evidence remains outside Git.

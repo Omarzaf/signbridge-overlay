@@ -14,6 +14,7 @@ import runManifestFixture from "../../../fixtures/synthetic-unsupported.run-mani
 import signPackFixture from "../../../fixtures/synthetic-unsupported.signpack.json";
 import {
   CONTEST_EVIDENCE_CATEGORIES,
+  CONTEST_EVIDENCE_METHODS,
   RELEASE_CHANNELS,
   RELEASE_PURPOSES,
   validateAssetLedger,
@@ -24,7 +25,10 @@ import {
   validateRunManifest,
   validateSignPack,
 } from "./index";
-import type { ValidationResult } from "./types";
+import type {
+  ContestEvidenceCategory,
+  ValidationResult,
+} from "./types";
 
 type MutableObject = Record<string, unknown>;
 
@@ -38,6 +42,24 @@ function issueCodes<T>(result: ValidationResult<T>): string[] {
 
 function issuePaths<T>(result: ValidationResult<T>): string[] {
   return result.ok ? [] : result.issues.map((issue) => issue.path);
+}
+
+function integerSchemaMaximums(value: unknown): unknown[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => integerSchemaMaximums(item));
+  }
+  if (typeof value !== "object" || value === null) {
+    return [];
+  }
+  const object = value as Record<string, unknown>;
+  const maxima =
+    object["type"] === "integer" ? [object["maximum"]] : [];
+  return [
+    ...maxima,
+    ...Object.values(object).flatMap((item) =>
+      integerSchemaMaximums(item),
+    ),
+  ];
 }
 
 function createStructuralReleaseCandidate(): MutableObject {
@@ -156,6 +178,91 @@ function createStructuralReleaseCandidate(): MutableObject {
   };
 }
 
+function createContestEvidenceLedger(): MutableObject {
+  const evidence = cloneObject(contestEvidenceFixture);
+  evidence["records"] = CONTEST_EVIDENCE_CATEGORIES.map(
+    (category, index): MutableObject => {
+      const hex = (index % 16).toString(16);
+      const base: MutableObject = {
+        evidenceId: `evd_category${index.toString().padStart(6, "0")}`,
+        category,
+        status: "evidence_linked",
+        periodStart: "2026-01-01T00:00:00.000Z",
+        periodEnd: "2026-01-31T23:59:59.000Z",
+        sourceHash: `sha256:${hex.repeat(64)}`,
+        metricDefinition: `Synthetic aggregate for ${category}; not claim verification.`,
+        evidenceMethod: "public_artifact",
+        relationship: "not_applicable",
+        measurement: {
+          kind: "artifact",
+          artifactHash: `sha256:${hex.repeat(64)}`,
+        },
+      };
+
+      if (category === "monthly_arms_length_revenue") {
+        base["periodMonth"] = "2026-01";
+      }
+      if (category === "gemini_production_call") {
+        base["evidenceMethod"] = "runtime_log";
+        base["measurement"] = { kind: "count", value: 0, unit: "calls" };
+      } else if (category === "user_count") {
+        base["evidenceMethod"] = "aggregate_reconciliation";
+        base["measurement"] = { kind: "count", value: 0, unit: "users" };
+      } else if (category === "pilot_participant_count") {
+        base["evidenceMethod"] = "aggregate_reconciliation";
+        base["measurement"] = {
+          kind: "count",
+          value: 0,
+          unit: "participants",
+        };
+      } else if (
+        [
+          "arms_length_revenue",
+          "monthly_arms_length_revenue",
+          "related_party_revenue",
+          "expense",
+          "marketing_spend",
+          "refund",
+        ].includes(category)
+      ) {
+        base["evidenceMethod"] = "aggregate_reconciliation";
+        base["measurement"] = {
+          kind: "money",
+          minorUnits: 0,
+          currency: "USD",
+        };
+        if (
+          category === "arms_length_revenue" ||
+          category === "monthly_arms_length_revenue" ||
+          category === "refund"
+        ) {
+          base["relationship"] = "arms_length";
+        } else if (category === "related_party_revenue") {
+          base["relationship"] = "related_party";
+        }
+      }
+
+      if (category === "feedback_consent") {
+        base["consentRef"] = "consent_synthetic001";
+      }
+      return base;
+    },
+  );
+  return evidence;
+}
+
+function contestRecord(
+  evidence: MutableObject,
+  category: ContestEvidenceCategory,
+): MutableObject {
+  const records = evidence["records"] as MutableObject[];
+  const record = records.find((candidate) => candidate["category"] === category);
+  if (record === undefined) {
+    throw new Error(`missing synthetic contest record for ${category}`);
+  }
+  return record;
+}
+
 describe("machine-readable contracts", () => {
   test("use draft 2020-12 and reject unknown top-level properties", () => {
     for (const schema of [
@@ -177,6 +284,30 @@ describe("machine-readable contracts", () => {
     expect(
       contestEvidenceSchema.$defs.record.properties.category.enum,
     ).toEqual(CONTEST_EVIDENCE_CATEGORIES);
+    expect(
+      contestEvidenceSchema.$defs.record.properties.evidenceMethod.enum,
+    ).toEqual(CONTEST_EVIDENCE_METHODS);
+    expect(
+      contestEvidenceSchema.$defs.record.properties.status.enum,
+    ).toEqual(["draft", "evidence_linked", "withdrawn"]);
+    expect(
+      JSON.stringify(contestEvidenceSchema.$defs.record.allOf),
+    ).toContain('"required":["periodMonth"]');
+  });
+
+  test("caps every schema integer at the JavaScript safe maximum", () => {
+    const maxima = [
+      signPackSchema,
+      reviewEventSchema,
+      runManifestSchema,
+      assetLedgerSchema,
+      releaseRequestSchema,
+      contestEvidenceSchema,
+    ].flatMap((schema) => integerSchemaMaximums(schema));
+    expect(maxima).toHaveLength(8);
+    expect(maxima).toEqual(
+      Array.from({ length: maxima.length }, () => Number.MAX_SAFE_INTEGER),
+    );
   });
 
   test("keeps release scope enums and JSON Schema in exact parity", () => {
@@ -264,6 +395,24 @@ describe("synthetic unsupported fixtures", () => {
     assets[0]!["path"] = "assets/../synthetic.webm";
     const traversalResult = validateSignPack(pack);
     expect(issueCodes(traversalResult)).toContain("relative_asset_path");
+  });
+
+  test("rejects rollover UTC timestamps, hour 24, and unsafe integers", () => {
+    const rollover = cloneObject(reviewEventFixture);
+    rollover["occurredAt"] = "2026-02-30T12:00:00.000Z";
+    expect(issueCodes(validateReviewEvent(rollover))).toContain("date_time");
+
+    const hourTwentyFour = cloneObject(reviewEventFixture);
+    hourTwentyFour["occurredAt"] = "2026-01-01T24:00:00.000Z";
+    expect(issueCodes(validateReviewEvent(hourTwentyFour))).toContain(
+      "date_time",
+    );
+
+    const unsafeSequence = cloneObject(reviewEventFixture);
+    unsafeSequence["sequence"] = Number.MAX_SAFE_INTEGER + 1;
+    expect(issueCodes(validateReviewEvent(unsafeSequence))).toContain(
+      "safe_integer",
+    );
   });
 
   test("prevents an authoring service from inventing human approval", () => {
@@ -527,63 +676,109 @@ describe("draft release candidate", () => {
 
 describe("contest evidence coverage", () => {
   test("accepts a privacy-safe record for every claims-ledger family", () => {
-    const evidence = cloneObject(contestEvidenceFixture);
-    evidence["records"] = CONTEST_EVIDENCE_CATEGORIES.map(
-      (category, index): MutableObject => {
-        const hex = (index % 16).toString(16);
-        const base: MutableObject = {
-          evidenceId: `evd_category${index.toString().padStart(6, "0")}`,
-          category,
-          status: "draft",
-          periodStart: "2026-01-01T00:00:00.000Z",
-          periodEnd: "2026-01-31T23:59:59.000Z",
-          sourceHash: `sha256:${hex.repeat(64)}`,
-          relationship: "not_applicable",
-          measurement: {
-            kind: "artifact",
-            artifactHash: `sha256:${hex.repeat(64)}`,
-          },
-        };
+    expect(validateContestEvidence(createContestEvidenceLedger())).toMatchObject(
+      { ok: true },
+    );
+  });
 
-        if (category === "gemini_production_call") {
-          base["measurement"] = { kind: "count", value: 0, unit: "calls" };
-        } else if (category === "user_count") {
-          base["measurement"] = { kind: "count", value: 0, unit: "users" };
-        } else if (category === "pilot_participant_count") {
-          base["measurement"] = {
-            kind: "count",
-            value: 0,
-            unit: "participants",
-          };
-        } else if (
-          [
-            "arms_length_revenue",
-            "monthly_arms_length_revenue",
-            "related_party_revenue",
-            "expense",
-            "marketing_spend",
-            "refund",
-          ].includes(category)
-        ) {
-          base["measurement"] = {
-            kind: "money",
-            minorUnits: 0,
-            currency: "USD",
-          };
-          base["relationship"] =
-            category === "related_party_revenue"
-              ? "related_party"
-              : "arms_length";
-        }
+  test("rejects self-asserted verification and incomplete evidence context", () => {
+    const selfAsserted = createContestEvidenceLedger();
+    contestRecord(selfAsserted, "education_category_relevance")["status"] =
+      "verified";
+    expect(issueCodes(validateContestEvidence(selfAsserted))).toContain("enum");
 
-        if (category === "feedback_consent") {
-          base["consentRef"] = "consent_synthetic001";
-        }
-        return base;
-      },
+    const incomplete = createContestEvidenceLedger();
+    const record = contestRecord(incomplete, "education_category_relevance");
+    delete record["metricDefinition"];
+    record["evidenceMethod"] = "truth_verified";
+    const result = validateContestEvidence(incomplete);
+    expect(issueCodes(result)).toContain("required");
+    expect(issueCodes(result)).toContain("enum");
+  });
+
+  test("requires periodMonth only for its matching monthly UTC window", () => {
+    const missing = createContestEvidenceLedger();
+    delete contestRecord(missing, "monthly_arms_length_revenue")[
+      "periodMonth"
+    ];
+    expect(issueCodes(validateContestEvidence(missing))).toContain(
+      "period_month",
     );
 
+    const forbidden = createContestEvidenceLedger();
+    contestRecord(forbidden, "arms_length_revenue")["periodMonth"] = "2026-01";
+    expect(issueCodes(validateContestEvidence(forbidden))).toContain(
+      "period_month",
+    );
+
+    const mismatch = createContestEvidenceLedger();
+    contestRecord(mismatch, "monthly_arms_length_revenue")["periodMonth"] =
+      "2026-02";
+    expect(issueCodes(validateContestEvidence(mismatch))).toContain(
+      "period_month",
+    );
+  });
+
+  test("rejects duplicate scopes and overlapping financial windows", () => {
+    const duplicate = createContestEvidenceLedger();
+    const duplicateRecord = cloneObject(
+      contestRecord(duplicate, "arms_length_revenue"),
+    );
+    duplicateRecord["evidenceId"] = "evd_duplicatescope01";
+    duplicateRecord["sourceHash"] =
+      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    (duplicate["records"] as MutableObject[]).push(duplicateRecord);
+    expect(issueCodes(validateContestEvidence(duplicate))).toContain(
+      "duplicate_claim_scope",
+    );
+
+    const overlapping = createContestEvidenceLedger();
+    const overlapRecord = cloneObject(
+      contestRecord(overlapping, "arms_length_revenue"),
+    );
+    overlapRecord["evidenceId"] = "evd_overlapwindow01";
+    overlapRecord["periodStart"] = "2026-01-15T00:00:00.000Z";
+    overlapRecord["periodEnd"] = "2026-02-15T23:59:59.000Z";
+    overlapRecord["sourceHash"] =
+      "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    (overlapping["records"] as MutableObject[]).push(overlapRecord);
+    expect(issueCodes(validateContestEvidence(overlapping))).toContain(
+      "overlapping_claim_window",
+    );
+  });
+
+  test("allows an active record to replace a withdrawn claim scope", () => {
+    const evidence = createContestEvidenceLedger();
+    const withdrawn = contestRecord(evidence, "arms_length_revenue");
+    withdrawn["status"] = "withdrawn";
+    const replacement = cloneObject(withdrawn);
+    replacement["evidenceId"] = "evd_replacement0001";
+    replacement["status"] = "evidence_linked";
+    replacement["sourceHash"] =
+      "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+    (evidence["records"] as MutableObject[]).push(replacement);
+
     expect(validateContestEvidence(evidence)).toMatchObject({ ok: true });
+  });
+
+  test("keeps ordinary spend outside revenue relationship classification", () => {
+    const evidence = createContestEvidenceLedger();
+    contestRecord(evidence, "expense")["relationship"] = "arms_length";
+    contestRecord(evidence, "marketing_spend")["relationship"] =
+      "related_party";
+    const result = validateContestEvidence(evidence);
+    expect(issueCodes(result)).toContain("relationship");
+  });
+
+  test("rejects unsafe aggregate integers", () => {
+    const evidence = createContestEvidenceLedger();
+    const measurement = contestRecord(evidence, "user_count")[
+      "measurement"
+    ] as MutableObject;
+    measurement["value"] = Number.MAX_SAFE_INTEGER + 1;
+    expect(issueCodes(validateContestEvidence(evidence))).toContain(
+      "safe_integer",
+    );
   });
 
   test("rejects unknown categories and private data without throwing", () => {
@@ -597,6 +792,8 @@ describe("contest evidence coverage", () => {
         periodEnd: "2026-01-01T00:00:01.000Z",
         sourceHash:
           "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+        metricDefinition: "An intentionally invalid synthetic claim category.",
+        evidenceMethod: "human_declaration",
         relationship: "not_applicable",
         measurement: {
           kind: "artifact",

@@ -1,5 +1,6 @@
 import {
   CONTEST_EVIDENCE_CATEGORIES,
+  CONTEST_EVIDENCE_METHODS,
   RELEASE_CHANNELS,
   RELEASE_PURPOSES,
   SCHEMA_VERSION,
@@ -24,6 +25,7 @@ const BCP_47_PATTERN = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/u;
 const REASON_CODE_PATTERN = /^[a-z][a-z0-9_]{2,63}$/u;
 const TOOL_NAME_PATTERN = /^[a-z][a-z0-9_-]{2,63}$/u;
 const CURRENCY_PATTERN = /^[A-Z]{3}$/u;
+const PERIOD_MONTH_PATTERN = /^[0-9]{4}-(?:0[1-9]|1[0-2])$/u;
 const RFC_3339_UTC_PATTERN =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/u;
 
@@ -63,6 +65,13 @@ const MONEY_CATEGORIES = new Set<ContestEvidenceCategory>([
   "related_party_revenue",
   "expense",
   "marketing_spend",
+  "refund",
+]);
+
+const RELATIONSHIP_FINANCIAL_CATEGORIES = new Set<ContestEvidenceCategory>([
+  "arms_length_revenue",
+  "monthly_arms_length_revenue",
+  "related_party_revenue",
   "refund",
 ]);
 
@@ -197,11 +206,19 @@ function integerAt(
   minimum: number,
 ): number | undefined {
   const value = object[key];
-  if (!Number.isInteger(value)) {
+  if (typeof value !== "number" || !Number.isInteger(value)) {
     collector.add(`${path}.${key}`, "type", "must be an integer");
     return undefined;
   }
-  const integer = value as number;
+  if (!Number.isSafeInteger(value)) {
+    collector.add(
+      `${path}.${key}`,
+      "safe_integer",
+      "must be a JavaScript safe integer",
+    );
+    return undefined;
+  }
+  const integer = value;
   if (integer < minimum) {
     collector.add(
       `${path}.${key}`,
@@ -241,10 +258,7 @@ function dateTimeAt(
   collector: Collector,
 ): string | undefined {
   const value = stringAt(object, key, path, collector);
-  if (
-    value !== undefined &&
-    (!RFC_3339_UTC_PATTERN.test(value) || Number.isNaN(Date.parse(value)))
-  ) {
+  if (value !== undefined && parseCanonicalUtcTimestamp(value) === undefined) {
     collector.add(
       `${path}.${key}`,
       "date_time",
@@ -252,6 +266,21 @@ function dateTimeAt(
     );
   }
   return value;
+}
+
+function parseCanonicalUtcTimestamp(value: string): number | undefined {
+  if (!RFC_3339_UTC_PATTERN.test(value)) {
+    return undefined;
+  }
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) {
+    return undefined;
+  }
+  const canonical = new Date(timestamp).toISOString();
+  const normalizedInput = value.includes(".")
+    ? value
+    : value.replace(/Z$/u, ".000Z");
+  return canonical === normalizedInput ? timestamp : undefined;
 }
 
 function uniqueStringArray(
@@ -365,12 +394,14 @@ function checkDateOrder(
   endPath: string,
   collector: Collector,
 ): void {
+  const startTimestamp =
+    start === undefined ? undefined : parseCanonicalUtcTimestamp(start);
+  const endTimestamp =
+    end === undefined ? undefined : parseCanonicalUtcTimestamp(end);
   if (
-    start !== undefined &&
-    end !== undefined &&
-    !Number.isNaN(Date.parse(start)) &&
-    !Number.isNaN(Date.parse(end)) &&
-    Date.parse(end) < Date.parse(start)
+    startTimestamp !== undefined &&
+    endTimestamp !== undefined &&
+    endTimestamp < startTimestamp
   ) {
     collector.add(endPath, "time_order", "must not precede the start time");
   }
@@ -2086,6 +2117,14 @@ export function validateContestEvidence(
 
   const records = arrayAt(root, "records", "$", collector);
   const evidenceIds = new Set<string>();
+  const claimScopes = new Set<string>();
+  const financialWindows: Array<{
+    readonly category: ContestEvidenceCategory;
+    readonly relationship: "arms_length" | "related_party" | "not_applicable";
+    readonly start: number;
+    readonly end: number;
+    readonly path: string;
+  }> = [];
   records?.forEach((value, index) => {
     const path = `$.records[${index}]`;
     const record = objectAt(
@@ -2097,7 +2136,10 @@ export function validateContestEvidence(
         "status",
         "periodStart",
         "periodEnd",
+        "periodMonth",
         "sourceHash",
+        "metricDefinition",
+        "evidenceMethod",
         "relationship",
         "measurement",
         "consentRef",
@@ -2109,6 +2151,8 @@ export function validateContestEvidence(
         "periodStart",
         "periodEnd",
         "sourceHash",
+        "metricDefinition",
+        "evidenceMethod",
         "relationship",
         "measurement",
       ],
@@ -2133,17 +2177,37 @@ export function validateContestEvidence(
     const category = isContestEvidenceCategory(categoryValue)
       ? categoryValue
       : undefined;
-    stringAt(record, "status", path, collector, {
-      enumValues: ["draft", "verified", "withdrawn"],
+    const statusValue = stringAt(record, "status", path, collector, {
+      enumValues: ["draft", "evidence_linked", "withdrawn"],
     });
+    const status =
+      statusValue === "draft" ||
+      statusValue === "evidence_linked" ||
+      statusValue === "withdrawn"
+        ? statusValue
+        : undefined;
     const periodStart = dateTimeAt(record, "periodStart", path, collector);
     const periodEnd = dateTimeAt(record, "periodEnd", path, collector);
     checkDateOrder(periodStart, periodEnd, `${path}.periodEnd`, collector);
+    const periodMonth = optionalStringAt(
+      record,
+      "periodMonth",
+      path,
+      collector,
+      { pattern: PERIOD_MONTH_PATTERN },
+    );
     checkHash(
       stringAt(record, "sourceHash", path, collector),
       `${path}.sourceHash`,
       collector,
     );
+    stringAt(record, "metricDefinition", path, collector, {
+      minLength: 1,
+      maxLength: 500,
+    });
+    stringAt(record, "evidenceMethod", path, collector, {
+      enumValues: CONTEST_EVIDENCE_METHODS,
+    });
     const relationship = stringAt(
       record,
       "relationship",
@@ -2153,6 +2217,12 @@ export function validateContestEvidence(
         enumValues: ["arms_length", "related_party", "not_applicable"],
       },
     );
+    const normalizedRelationship =
+      relationship === "arms_length" ||
+      relationship === "related_party" ||
+      relationship === "not_applicable"
+        ? relationship
+        : undefined;
     const measurementKind = validateContestMeasurement(
       record["measurement"],
       `${path}.measurement`,
@@ -2167,6 +2237,43 @@ export function validateContestEvidence(
     );
 
     if (category !== undefined) {
+      if (
+        category === "monthly_arms_length_revenue" &&
+        periodMonth === undefined
+      ) {
+        collector.add(
+          `${path}.periodMonth`,
+          "period_month",
+          "monthly arms-length revenue requires YYYY-MM periodMonth",
+        );
+      }
+      if (
+        category === "monthly_arms_length_revenue" &&
+        periodMonth !== undefined &&
+        PERIOD_MONTH_PATTERN.test(periodMonth) &&
+        periodStart !== undefined &&
+        periodEnd !== undefined &&
+        parseCanonicalUtcTimestamp(periodStart) !== undefined &&
+        parseCanonicalUtcTimestamp(periodEnd) !== undefined &&
+        (periodStart.slice(0, 7) !== periodMonth ||
+          periodEnd.slice(0, 7) !== periodMonth)
+      ) {
+        collector.add(
+          `${path}.periodMonth`,
+          "period_month",
+          "must match the canonical UTC month of both periodStart and periodEnd",
+        );
+      }
+      if (
+        category !== "monthly_arms_length_revenue" &&
+        periodMonth !== undefined
+      ) {
+        collector.add(
+          `${path}.periodMonth`,
+          "period_month",
+          "periodMonth is reserved for monthly arms-length revenue",
+        );
+      }
       const expected = expectedMeasurement(category);
       if (measurementKind !== expected.kind) {
         collector.add(
@@ -2186,19 +2293,20 @@ export function validateContestEvidence(
           `${category} evidence requires unit ${expected.unit}`,
         );
       }
-      const isMoney = MONEY_CATEGORIES.has(category);
-      if (isMoney && relationship === "not_applicable") {
+      const usesFinancialRelationship =
+        RELATIONSHIP_FINANCIAL_CATEGORIES.has(category);
+      if (usesFinancialRelationship && relationship === "not_applicable") {
         collector.add(
           `${path}.relationship`,
           "relationship",
-          "financial evidence must declare arms-length or related-party status",
+          "revenue and refund evidence must declare arms-length or related-party status",
         );
       }
-      if (!isMoney && relationship !== "not_applicable") {
+      if (!usesFinancialRelationship && relationship !== "not_applicable") {
         collector.add(
           `${path}.relationship`,
           "relationship",
-          "non-financial evidence must use not_applicable",
+          "non-revenue evidence, including ordinary spend, must use not_applicable",
         );
       }
       if (
@@ -2235,6 +2343,68 @@ export function validateContestEvidence(
           "state_conflict",
           "consentRef is reserved for feedback evidence",
         );
+      }
+
+      const startTimestamp =
+        periodStart === undefined
+          ? undefined
+          : parseCanonicalUtcTimestamp(periodStart);
+      const endTimestamp =
+        periodEnd === undefined
+          ? undefined
+          : parseCanonicalUtcTimestamp(periodEnd);
+      const hasValidPeriodMonth =
+        category === "monthly_arms_length_revenue"
+          ? periodMonth !== undefined && PERIOD_MONTH_PATTERN.test(periodMonth)
+          : periodMonth === undefined;
+      if (
+        normalizedRelationship !== undefined &&
+        startTimestamp !== undefined &&
+        endTimestamp !== undefined &&
+        endTimestamp >= startTimestamp &&
+        hasValidPeriodMonth &&
+        (status === "draft" || status === "evidence_linked")
+      ) {
+        const scopeKey = [
+          category,
+          normalizedRelationship,
+          periodStart,
+          periodEnd,
+          periodMonth ?? "",
+        ].join("\u0000");
+        if (claimScopes.has(scopeKey)) {
+          collector.add(
+            path,
+            "duplicate_claim_scope",
+            "must not duplicate a category, relationship, and reporting window",
+          );
+        }
+        claimScopes.add(scopeKey);
+
+        if (MONEY_CATEGORIES.has(category)) {
+          for (const prior of financialWindows) {
+            if (
+              prior.category === category &&
+              prior.relationship === normalizedRelationship &&
+              startTimestamp <= prior.end &&
+              prior.start <= endTimestamp
+            ) {
+              collector.add(
+                path,
+                "overlapping_claim_window",
+                `financial claim window overlaps ${prior.path}`,
+              );
+              break;
+            }
+          }
+          financialWindows.push({
+            category,
+            relationship: normalizedRelationship,
+            start: startTimestamp,
+            end: endTimestamp,
+            path,
+          });
+        }
       }
     }
   });
