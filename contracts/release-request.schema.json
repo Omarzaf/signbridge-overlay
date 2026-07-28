@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://signbridge.example/contracts/release-request.schema.json",
+  "$comment": "Structural validation only; this schema cannot authorize release or establish claim truth.",
   "title": "SignBridge Release Request",
   "description": "A draft-only request describing the exact review decisions and distribution scope to be checked before publisher authorization.",
   "type": "object",
@@ -112,12 +113,96 @@
           "type": "boolean"
         },
         "redistribution": {
-          "type": "boolean"
+          "type": "boolean",
+          "const": true
         },
         "sublicensing": {
           "type": "boolean"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "anyOf": [
+              {
+                "properties": {
+                  "purposes": {
+                    "contains": {
+                      "enum": [
+                        "public_demo",
+                        "contest_submission",
+                        "sponsor_publicity"
+                      ]
+                    }
+                  }
+                },
+                "required": ["purposes"]
+              },
+              {
+                "properties": {
+                  "channels": {
+                    "contains": {
+                      "enum": [
+                        "pwa",
+                        "chrome_extension",
+                        "demo_video",
+                        "contest_platform",
+                        "sponsor_media"
+                      ]
+                    }
+                  }
+                },
+                "required": ["channels"]
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "hosting": {
+                "const": true
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "channels": {
+                "contains": {
+                  "enum": ["demo_video", "sponsor_media"]
+                }
+              }
+            },
+            "required": ["channels"]
+          },
+          "then": {
+            "properties": {
+              "modification": {
+                "const": true
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "purposes": {
+                "contains": {
+                  "const": "sponsor_publicity"
+                }
+              }
+            },
+            "required": ["purposes"]
+          },
+          "then": {
+            "properties": {
+              "sublicensing": {
+                "const": true
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

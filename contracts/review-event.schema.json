@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://signbridge.example/contracts/review-event.schema.json",
+  "$comment": "Structural validation only; this schema cannot authorize release or establish claim truth.",
   "title": "SignBridge Review Event",
   "description": "Append-only proposal or human-review decision tied to an exact segment decision hash.",
   "type": "object",
@@ -62,7 +63,43 @@
           "minLength": 1,
           "maxLength": 80
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "authoring_service"
+              }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "properties": {
+              "actorRef": {
+                "pattern": "^service_[a-z0-9]{12,64}$"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "human_reviewer"
+              }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "properties": {
+              "actorRef": {
+                "pattern": "^reviewer_[a-z0-9]{12,64}$"
+              }
+            }
+          }
+        }
+      ]
     },
     "action": {
       "enum": [
@@ -206,7 +243,7 @@
       "if": {
         "properties": {
           "action": {
-            "enum": ["changes_requested", "rejected"]
+            "const": "changes_requested"
           }
         },
         "required": ["action"]
@@ -220,6 +257,34 @@
                 "const": "human_reviewer"
               }
             }
+          },
+          "reviewStatus": {
+            "const": "changes_requested"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "rejected"
+          }
+        },
+        "required": ["action"]
+      },
+      "then": {
+        "required": ["reasonCode"],
+        "properties": {
+          "actor": {
+            "properties": {
+              "kind": {
+                "const": "human_reviewer"
+              }
+            }
+          },
+          "reviewStatus": {
+            "const": "rejected"
           }
         }
       }

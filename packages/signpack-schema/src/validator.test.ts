@@ -27,8 +27,10 @@ import {
 } from "./index";
 import type {
   ContestEvidenceCategory,
+  ReleaseScope,
   ValidationResult,
 } from "./types";
+import { deriveRequiredReleaseOperations } from "./validator";
 
 type MutableObject = Record<string, unknown>;
 
@@ -142,7 +144,7 @@ function createStructuralReleaseCandidate(): MutableObject {
         grantedPurposes: [...RELEASE_PURPOSES],
         grantedChannels: [...RELEASE_CHANNELS],
         territories: ["US"],
-        modification: false,
+        modification: true,
         hosting: true,
         redistribution: true,
         sublicensing: true,
@@ -164,7 +166,7 @@ function createStructuralReleaseCandidate(): MutableObject {
     purposes: [...RELEASE_PURPOSES],
     channels: [...RELEASE_CHANNELS],
     territories: ["US"],
-    modification: false,
+    modification: true,
     hosting: true,
     redistribution: true,
     sublicensing: true,
@@ -176,6 +178,24 @@ function createStructuralReleaseCandidate(): MutableObject {
     assetLedger: ledger,
     releaseRequest,
   };
+}
+
+function createStructurallyPublishedSignPack(): MutableObject {
+  const candidate = createStructuralReleaseCandidate();
+  const pack = cloneObject(candidate["signPack"]);
+  pack["releaseStatus"] = "published";
+  pack["publication"] = {
+    releaseId:
+      "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+    releasedAt: "2026-01-01T00:00:06.000Z",
+    publisherId: "publisher_synthetic001",
+    assetLedgerHash:
+      "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+    reviewLogHash:
+      "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+    humanApprovalEventIds: ["rev_syntheticapproval1"],
+  };
+  return pack;
 }
 
 function createContestEvidenceLedger(): MutableObject {
@@ -264,7 +284,7 @@ function contestRecord(
 }
 
 describe("machine-readable contracts", () => {
-  test("use draft 2020-12 and reject unknown top-level properties", () => {
+  test("marks every closed contract as structural-only draft 2020-12", () => {
     for (const schema of [
       signPackSchema,
       reviewEventSchema,
@@ -275,6 +295,9 @@ describe("machine-readable contracts", () => {
     ]) {
       expect(schema.$schema).toBe(
         "https://json-schema.org/draft/2020-12/schema",
+      );
+      expect(schema.$comment).toBe(
+        "Structural validation only; this schema cannot authorize release or establish claim truth.",
       );
       expect(schema.additionalProperties).toBe(false);
     }
@@ -323,6 +346,21 @@ describe("machine-readable contracts", () => {
     expect(
       assetLedgerSchema.$defs.rights.properties.grantedChannels.items.enum,
     ).toEqual(RELEASE_CHANNELS);
+    expect(
+      releaseRequestSchema.$defs.releaseScope.properties.redistribution.const,
+    ).toBe(true);
+    const releaseImplications = JSON.stringify(
+      releaseRequestSchema.$defs.releaseScope.allOf,
+    );
+    expect(releaseImplications).toContain('"hosting":{"const":true}');
+    expect(releaseImplications).toContain('"modification":{"const":true}');
+    expect(releaseImplications).toContain('"sublicensing":{"const":true}');
+
+    const licensedRules = JSON.stringify(
+      assetLedgerSchema.$defs.assetRecord.allOf,
+    );
+    expect(licensedRules).toContain('"grantedPurposes":{"minItems":1}');
+    expect(licensedRules).toContain('"grantedChannels":{"minItems":1}');
   });
 
   test("encodes core authority and publication conditions in JSON Schema", () => {
@@ -330,12 +368,34 @@ describe("machine-readable contracts", () => {
     expect(reviewRules).toContain('"authoring_service"');
     expect(reviewRules).toContain('"proposal_created"');
     expect(reviewRules).toContain('"human_reviewer"');
+    expect(
+      JSON.stringify(reviewEventSchema.properties.actor.allOf),
+    ).toContain('"pattern":"^service_[a-z0-9]{12,64}$"');
+    expect(
+      JSON.stringify(reviewEventSchema.properties.actor.allOf),
+    ).toContain('"pattern":"^reviewer_[a-z0-9]{12,64}$"');
+    expect(JSON.stringify(reviewEventSchema.allOf[1]?.then)).toContain(
+      '"kind":{"const":"authoring_service"}',
+    );
+    expect(JSON.stringify(reviewEventSchema.allOf[4]?.then)).toContain(
+      '"reviewStatus":{"const":"changes_requested"}',
+    );
+    expect(JSON.stringify(reviewEventSchema.allOf[5]?.then)).toContain(
+      '"reviewStatus":{"const":"rejected"}',
+    );
 
     const publicationRules = JSON.stringify(signPackSchema.allOf);
     expect(publicationRules).toContain('"reviewStatus":{"const":"approved"}');
     expect(publicationRules).toContain(
       '"translationStatus":{"const":"proposed"}',
     );
+    expect(publicationRules).toContain(
+      '"signedLanguage":{"not":{"const":"zxx"}}',
+    );
+    expect(publicationRules).toContain('"region":{"not":{"const":"ZZ"}}');
+    expect(publicationRules).toContain('"reviewerRefs":{"minItems":1}');
+    expect(publicationRules).toContain('"assets":{"minItems":1}');
+    expect(publicationRules).toContain('"signerRefs":{"minItems":1}');
   });
 });
 
@@ -365,6 +425,34 @@ describe("synthetic unsupported fixtures", () => {
     const publishResult = validateSignPack(published);
     expect(issueCodes(publishResult)).toContain("publication_gate");
     expect(issuePaths(publishResult)).toContain("$.publication");
+  });
+
+  test("enforces published language and participant minima", () => {
+    expect(validateSignPack(createStructurallyPublishedSignPack())).toMatchObject(
+      { ok: true },
+    );
+
+    const noReviewer = createStructurallyPublishedSignPack();
+    const reviewerParticipants = noReviewer["participants"] as MutableObject;
+    reviewerParticipants["reviewerRefs"] = [];
+    expect(issueCodes(validateSignPack(noReviewer))).toContain(
+      "publication_gate",
+    );
+
+    const syntheticLanguage = createStructurallyPublishedSignPack();
+    const language = syntheticLanguage["language"] as MutableObject;
+    language["signedLanguage"] = "zxx";
+    language["region"] = "ZZ";
+    expect(issueCodes(validateSignPack(syntheticLanguage))).toContain(
+      "publication_gate",
+    );
+
+    const noSigner = createStructurallyPublishedSignPack();
+    const signerParticipants = noSigner["participants"] as MutableObject;
+    signerParticipants["signerRefs"] = [];
+    expect(issueCodes(validateSignPack(noSigner))).toContain(
+      "publication_gate",
+    );
   });
 
   test("rejects overlapping timing and remote or traversing asset paths", () => {
@@ -426,6 +514,79 @@ describe("synthetic unsupported fixtures", () => {
     expect(issueCodes(result)).toContain("authority");
   });
 
+  test("keeps proposal and decision authority states exact", () => {
+    const humanProposal = cloneObject(reviewEventFixture);
+    humanProposal["actor"] = {
+      kind: "human_reviewer",
+      actorRef: "reviewer_synthetic001",
+    };
+    expect(issueCodes(validateReviewEvent(humanProposal))).toContain(
+      "authority",
+    );
+
+    const wrongServiceRef = cloneObject(reviewEventFixture);
+    wrongServiceRef["actor"] = {
+      kind: "authoring_service",
+      actorRef: "reviewer_synthetic001",
+    };
+    expect(issueCodes(validateReviewEvent(wrongServiceRef))).toContain(
+      "actor_ref",
+    );
+
+    const candidate = createStructuralReleaseCandidate();
+    const approval = cloneObject(
+      (candidate["reviewEvents"] as MutableObject[])[0],
+    );
+    approval["actor"] = {
+      kind: "human_reviewer",
+      actorRef: "service_synthetic0001",
+    };
+    expect(issueCodes(validateReviewEvent(approval))).toContain("actor_ref");
+
+    const changesRequested = cloneObject(approval);
+    changesRequested["actor"] = {
+      kind: "human_reviewer",
+      actorRef: "reviewer_synthetic001",
+    };
+    changesRequested["action"] = "changes_requested";
+    changesRequested["reviewStatus"] = "pending";
+    changesRequested["reasonCode"] = "mapping_needs_revision";
+    expect(issueCodes(validateReviewEvent(changesRequested))).toContain(
+      "state_conflict",
+    );
+
+    const rejected = cloneObject(changesRequested);
+    rejected["action"] = "rejected";
+    rejected["reviewStatus"] = "changes_requested";
+    expect(issueCodes(validateReviewEvent(rejected))).toContain(
+      "state_conflict",
+    );
+  });
+
+  test("requires licensed assets to grant at least one purpose and channel", () => {
+    const emptyPurposes = createStructuralReleaseCandidate();
+    const purposeAsset = (
+      (emptyPurposes["assetLedger"] as MutableObject)[
+        "assets"
+      ] as MutableObject[]
+    )[0]!;
+    (purposeAsset["rights"] as MutableObject)["grantedPurposes"] = [];
+    expect(
+      issueCodes(validateAssetLedger(emptyPurposes["assetLedger"])),
+    ).toContain("license_gate");
+
+    const emptyChannels = createStructuralReleaseCandidate();
+    const channelAsset = (
+      (emptyChannels["assetLedger"] as MutableObject)[
+        "assets"
+      ] as MutableObject[]
+    )[0]!;
+    (channelAsset["rights"] as MutableObject)["grantedChannels"] = [];
+    expect(
+      issueCodes(validateAssetLedger(emptyChannels["assetLedger"])),
+    ).toContain("license_gate");
+  });
+
   test("rejects empty scope and any claim of release assurance", () => {
     const request = cloneObject(releaseRequestFixture);
     request["assurance"] = "release_authorized";
@@ -435,6 +596,39 @@ describe("synthetic unsupported fixtures", () => {
     const result = validateReleaseRequest(request);
     expect(issueCodes(result)).toContain("enum");
     expect(issueCodes(result)).toContain("min_items");
+  });
+
+  test("rejects operation flags that understate inherent release scope", () => {
+    const understated: ReleaseScope = {
+      purposes: ["sponsor_publicity"],
+      channels: ["pwa", "demo_video"],
+      territories: ["US"],
+      modification: false,
+      hosting: false,
+      redistribution: false,
+      sublicensing: false,
+    };
+    expect(deriveRequiredReleaseOperations(understated)).toEqual({
+      modification: true,
+      hosting: true,
+      redistribution: true,
+      sublicensing: true,
+    });
+
+    const offline = cloneObject(releaseRequestFixture);
+    const offlineScope = offline["scope"] as MutableObject;
+    offlineScope["redistribution"] = false;
+    expect(issueCodes(validateReleaseRequest(offline))).toContain(
+      "scope_implication",
+    );
+
+    const hosted = cloneObject(releaseRequestFixture);
+    const hostedScope = hosted["scope"] as MutableObject;
+    hostedScope["channels"] = ["pwa"];
+    hostedScope["hosting"] = false;
+    expect(issueCodes(validateReleaseRequest(hosted))).toContain(
+      "scope_implication",
+    );
   });
 });
 
@@ -504,6 +698,13 @@ describe("draft release candidate", () => {
     expect(issueCodes(validateReleaseCandidate(lateLedger))).toContain(
       "request_time",
     );
+
+    const futureApprovalClaim = createStructuralReleaseCandidate();
+    const earlyLedger = futureApprovalClaim["assetLedger"] as MutableObject;
+    earlyLedger["generatedAt"] = "2026-01-01T00:00:03.500Z";
+    expect(
+      issueCodes(validateReleaseCandidate(futureApprovalClaim)),
+    ).toContain("ledger_time");
   });
 
   test("requires an exact declared asset reviewer event", () => {
@@ -550,6 +751,27 @@ describe("draft release candidate", () => {
     rejection["reasonCode"] = "human_reviewer_rejected";
     (candidate["reviewEvents"] as MutableObject[]).push(rejection);
 
+    expect(issueCodes(validateReleaseCandidate(candidate))).toContain(
+      "latest_decision",
+    );
+  });
+
+  test("treats a later authoring proposal as the latest segment event", () => {
+    const candidate = createStructuralReleaseCandidate();
+    const approval = (candidate["reviewEvents"] as MutableObject[])[0]!;
+    const proposal = cloneObject(approval);
+    proposal["eventId"] = "rev_syntheticproposal2";
+    proposal["sequence"] = 2;
+    proposal["occurredAt"] = "2026-01-01T00:00:04.750Z";
+    proposal["actor"] = {
+      kind: "authoring_service",
+      actorRef: "service_synthetic0001",
+    };
+    proposal["action"] = "proposal_created";
+    proposal["reviewStatus"] = "pending";
+    (candidate["reviewEvents"] as MutableObject[]).push(proposal);
+
+    expect(issueCodes(validateReviewEvent(proposal))).toEqual([]);
     expect(issueCodes(validateReleaseCandidate(candidate))).toContain(
       "latest_decision",
     );
@@ -628,6 +850,33 @@ describe("draft release candidate", () => {
     expect(issueCodes(validateReleaseCandidate(missingOperation))).toContain(
       "scope_coverage",
     );
+
+    const inherentRedistribution = createStructuralReleaseCandidate();
+    const redistributionRequest = inherentRedistribution[
+      "releaseRequest"
+    ] as MutableObject;
+    redistributionRequest["scope"] = {
+      purposes: ["product_playback"],
+      channels: ["offline_signpack"],
+      territories: ["US"],
+      modification: false,
+      hosting: false,
+      redistribution: true,
+      sublicensing: false,
+    };
+    const redistributionRights = (
+      (
+        (inherentRedistribution["assetLedger"] as MutableObject)[
+          "assets"
+        ] as MutableObject[]
+      )[0]!["rights"] as MutableObject
+    );
+    redistributionRights["grantedPurposes"] = ["product_playback"];
+    redistributionRights["grantedChannels"] = ["offline_signpack"];
+    redistributionRights["redistribution"] = false;
+    expect(
+      issueCodes(validateReleaseCandidate(inherentRedistribution)),
+    ).toContain("scope_coverage");
   });
 
   test("rejects signer, consent, and exact-hash mismatches", () => {

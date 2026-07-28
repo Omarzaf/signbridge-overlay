@@ -10,6 +10,7 @@ import {
   type DraftReleaseCandidateSignPack,
   type ReviewEvent,
   type ReleaseRequest,
+  type ReleaseScope,
   type RunManifest,
   type SignPack,
   type StructurallyValidReleaseCandidate,
@@ -74,6 +75,62 @@ const RELATIONSHIP_FINANCIAL_CATEGORIES = new Set<ContestEvidenceCategory>([
   "related_party_revenue",
   "refund",
 ]);
+
+const HOSTING_REQUIRED_PURPOSES = new Set([
+  "public_demo",
+  "contest_submission",
+  "sponsor_publicity",
+]);
+
+const HOSTING_REQUIRED_CHANNELS = new Set([
+  "pwa",
+  "chrome_extension",
+  "demo_video",
+  "contest_platform",
+  "sponsor_media",
+]);
+
+const MODIFICATION_REQUIRED_CHANNELS = new Set([
+  "demo_video",
+  "sponsor_media",
+]);
+
+function releaseScopeRequiresHosting(
+  purposes: readonly string[],
+  channels: readonly string[],
+): boolean {
+  return (
+    purposes.some((purpose) => HOSTING_REQUIRED_PURPOSES.has(purpose)) ||
+    channels.some((channel) => HOSTING_REQUIRED_CHANNELS.has(channel))
+  );
+}
+
+function releaseScopeRequiresModification(
+  channels: readonly string[],
+): boolean {
+  return channels.some((channel) =>
+    MODIFICATION_REQUIRED_CHANNELS.has(channel),
+  );
+}
+
+// Internal contract helper. It is intentionally not re-exported by index.ts.
+export function deriveRequiredReleaseOperations(
+  scope: ReleaseScope,
+): Record<
+  "modification" | "hosting" | "redistribution" | "sublicensing",
+  boolean
+> {
+  return {
+    modification:
+      scope.modification || releaseScopeRequiresModification(scope.channels),
+    hosting:
+      scope.hosting ||
+      releaseScopeRequiresHosting(scope.purposes, scope.channels),
+    redistribution: true,
+    sublicensing:
+      scope.sublicensing || scope.purposes.includes("sponsor_publicity"),
+  };
+}
 
 type JsonObject = Record<string, unknown>;
 
@@ -621,13 +678,27 @@ export function validateSignPack(input: unknown): ValidationResult<SignPack> {
     ],
     collector,
   );
+  let languageSigned: string | undefined;
+  let languageRegion: string | undefined;
   if (language !== undefined) {
-    stringAt(language, "signedLanguage", "$.language", collector, {
-      pattern: ISO_639_3_PATTERN,
-    });
-    stringAt(language, "region", "$.language", collector, {
-      pattern: REGION_PATTERN,
-    });
+    languageSigned = stringAt(
+      language,
+      "signedLanguage",
+      "$.language",
+      collector,
+      {
+        pattern: ISO_639_3_PATTERN,
+      },
+    );
+    languageRegion = stringAt(
+      language,
+      "region",
+      "$.language",
+      collector,
+      {
+        pattern: REGION_PATTERN,
+      },
+    );
     stringAt(language, "dialect", "$.language", collector, {
       minLength: 1,
       maxLength: 120,
@@ -975,6 +1046,13 @@ export function validateSignPack(input: unknown): ValidationResult<SignPack> {
         "published packs require human linguistic review",
       );
     }
+    if (languageSigned === "zxx" || languageRegion === "ZZ") {
+      collector.add(
+        "$.language",
+        "publication_gate",
+        "synthetic language and region sentinels cannot be published",
+      );
+    }
     if (reviewerRefs.length === 0) {
       collector.add(
         "$.participants.reviewerRefs",
@@ -1174,6 +1252,13 @@ export function validateReviewEvent(
         "authoring services cannot make review decisions",
       );
     }
+  }
+  if (action === "proposal_created" && actorKind !== "authoring_service") {
+    collector.add(
+      "$.actor.kind",
+      "authority",
+      "only the authoring service may create a proposal event",
+    );
   }
   if (action !== "proposal_created" && actorKind !== "human_reviewer") {
     collector.add(
@@ -1514,9 +1599,11 @@ export function validateReleaseRequest(
     collector,
   );
   if (scope !== undefined) {
+    let releasePurposes: string[] = [];
+    let releaseChannels: string[] = [];
     const purposes = arrayAt(scope, "purposes", "$.scope", collector, 1);
     if (purposes !== undefined) {
-      uniqueEnumStringArray(
+      releasePurposes = uniqueEnumStringArray(
         purposes,
         "$.scope.purposes",
         collector,
@@ -1525,7 +1612,7 @@ export function validateReleaseRequest(
     }
     const channels = arrayAt(scope, "channels", "$.scope", collector, 1);
     if (channels !== undefined) {
-      uniqueEnumStringArray(
+      releaseChannels = uniqueEnumStringArray(
         channels,
         "$.scope.channels",
         collector,
@@ -1542,13 +1629,63 @@ export function validateReleaseRequest(
     if (territories !== undefined) {
       uniqueTerritoryArray(territories, "$.scope.territories", collector);
     }
-    for (const operation of [
+    const modification = booleanAt(
+      scope,
       "modification",
-      "hosting",
+      "$.scope",
+      collector,
+    );
+    const hosting = booleanAt(scope, "hosting", "$.scope", collector);
+    const redistribution = booleanAt(
+      scope,
       "redistribution",
+      "$.scope",
+      collector,
+    );
+    const sublicensing = booleanAt(
+      scope,
       "sublicensing",
-    ] as const) {
-      booleanAt(scope, operation, "$.scope", collector);
+      "$.scope",
+      collector,
+    );
+
+    if (redistribution === false) {
+      collector.add(
+        "$.scope.redistribution",
+        "scope_implication",
+        "every release candidate inherently requires redistribution rights",
+      );
+    }
+    const requiresHosting = releaseScopeRequiresHosting(
+      releasePurposes,
+      releaseChannels,
+    );
+    if (requiresHosting && hosting === false) {
+      collector.add(
+        "$.scope.hosting",
+        "scope_implication",
+        "the requested purpose or channel inherently requires hosting rights",
+      );
+    }
+    if (
+      releaseScopeRequiresModification(releaseChannels) &&
+      modification === false
+    ) {
+      collector.add(
+        "$.scope.modification",
+        "scope_implication",
+        "demo-video and sponsor-media channels require modification rights",
+      );
+    }
+    if (
+      releasePurposes.includes("sponsor_publicity") &&
+      sublicensing === false
+    ) {
+      collector.add(
+        "$.scope.sublicensing",
+        "scope_implication",
+        "sponsor publicity inherently requires sublicensing rights",
+      );
     }
   }
 
@@ -1779,6 +1916,8 @@ export function validateAssetLedger(
     let rightsHash: string | undefined;
     let grantRef: string | undefined;
     let termModel: string | undefined;
+    let grantedPurposes: string[] = [];
+    let grantedChannels: string[] = [];
     if (rights !== undefined) {
       grantRef = optionalStringAt(
         rights,
@@ -1808,7 +1947,7 @@ export function validateAssetLedger(
         collector,
       );
       if (purposeValues !== undefined) {
-        uniqueEnumStringArray(
+        grantedPurposes = uniqueEnumStringArray(
           purposeValues,
           `${path}.rights.grantedPurposes`,
           collector,
@@ -1822,7 +1961,7 @@ export function validateAssetLedger(
         collector,
       );
       if (channelValues !== undefined) {
-        uniqueEnumStringArray(
+        grantedChannels = uniqueEnumStringArray(
           channelValues,
           `${path}.rights.grantedChannels`,
           collector,
@@ -1934,6 +2073,13 @@ export function validateAssetLedger(
           `${path}.rights`,
           "license_gate",
           "licensed assets require an exact-hash irrevocable grant reference",
+        );
+      }
+      if (grantedPurposes.length === 0 || grantedChannels.length === 0) {
+        collector.add(
+          `${path}.rights`,
+          "license_gate",
+          "licensed assets require at least one granted purpose and channel",
         );
       }
       if (!("reviewerApproval" in asset)) {
@@ -2569,6 +2715,9 @@ function validateReleaseCandidateInternal(
   const assetLedger = assetLedgerResult.value;
   const releaseRequest = releaseRequestResult.value;
   const requestedTimestamp = Date.parse(releaseRequest.requestedAt);
+  const requiredReleaseOperations = deriveRequiredReleaseOperations(
+    releaseRequest.scope,
+  );
 
   if (
     signPack.releaseStatus !== "draft" ||
@@ -2718,17 +2867,15 @@ function validateReleaseCandidateInternal(
   const usedAssetIds = new Set<string>();
   signPack.segments.forEach((segment, index) => {
     segment.assetIds.forEach((assetId) => usedAssetIds.add(assetId));
-    const suppliedHumanDecisions = reviewEvents
+    const suppliedSegmentEvents = reviewEvents
       .filter(
         (event) =>
           event.packId === signPack.packId &&
-          event.segmentId === segment.segmentId &&
-          event.actor.kind === "human_reviewer" &&
-          event.action !== "proposal_created",
+          event.segmentId === segment.segmentId,
       )
       .sort((left, right) => left.sequence - right.sequence);
-    const latestDecision = suppliedHumanDecisions.at(-1);
-    const selectedForSegment = suppliedHumanDecisions.filter((event) =>
+    const latestDecision = suppliedSegmentEvents.at(-1);
+    const selectedForSegment = suppliedSegmentEvents.filter((event) =>
       selectedIds.has(event.eventId),
     );
 
@@ -2740,7 +2887,7 @@ function validateReleaseCandidateInternal(
       collector.add(
         `$.signPack.segments[${index}]`,
         "latest_decision",
-        "must select exactly the latest supplied human decision",
+        "must select exactly the latest supplied valid segment event",
       );
       return;
     }
@@ -2876,7 +3023,7 @@ function validateReleaseCandidateInternal(
       "sublicensing",
     ] as const) {
       if (
-        releaseRequest.scope[operation] &&
+        requiredReleaseOperations[operation] &&
         !ledgerAsset.rights[operation]
       ) {
         collector.add(
@@ -2911,6 +3058,17 @@ function validateReleaseCandidateInternal(
         "$.assetLedger.assets",
         "asset_approval",
         `${assetId} must resolve to its selected production reviewer event`,
+      );
+    }
+    if (
+      approvalEvent !== undefined &&
+      Date.parse(approvalEvent.occurredAt) >
+        Date.parse(assetLedger.generatedAt)
+    ) {
+      collector.add(
+        "$.assetLedger.generatedAt",
+        "ledger_time",
+        `${assetId} reviewer approval occurs after the ledger generation time`,
       );
     }
   }

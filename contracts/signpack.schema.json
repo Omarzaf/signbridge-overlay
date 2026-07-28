@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://signbridge.example/contracts/signpack.schema.json",
+  "$comment": "Structural validation only; this schema cannot authorize release or establish claim truth.",
   "title": "SignBridge SignPack",
   "description": "Immutable playback manifest for language-specific, human-reviewed signing media or explicit caption fallback.",
   "type": "object",
@@ -150,6 +151,27 @@
           "linguisticReviewStatus": {
             "const": "human_reviewed"
           },
+          "language": {
+            "properties": {
+              "signedLanguage": {
+                "not": {
+                  "const": "zxx"
+                }
+              },
+              "region": {
+                "not": {
+                  "const": "ZZ"
+                }
+              }
+            }
+          },
+          "participants": {
+            "properties": {
+              "reviewerRefs": {
+                "minItems": 1
+              }
+            }
+          },
           "segments": {
             "items": {
               "allOf": [
@@ -173,7 +195,30 @@
               ]
             }
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "assets": {
+                  "minItems": 1
+                }
+              },
+              "required": ["assets"]
+            },
+            "then": {
+              "properties": {
+                "participants": {
+                  "properties": {
+                    "signerRefs": {
+                      "minItems": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
       },
       "else": {
         "not": {

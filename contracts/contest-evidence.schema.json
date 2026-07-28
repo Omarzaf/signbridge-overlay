@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://signbridge.example/contracts/contest-evidence.schema.json",
+  "$comment": "Structural validation only; this schema cannot authorize release or establish claim truth.",
   "title": "SignBridge Contest Evidence Ledger",
   "description": "Privacy-minimized claim records. evidence_linked means only that a public-safe evidence reference exists; it does not verify the claim.",
   "type": "object",

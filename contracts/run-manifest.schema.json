@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://signbridge.example/contracts/run-manifest.schema.json",
+  "$comment": "Structural validation only; this schema cannot authorize release or establish claim truth.",
   "title": "SignBridge Authoring Run Manifest",
   "description": "Privacy-minimized reproducibility metadata for a proposal run; it conveys no review or publication authority.",
   "type": "object",
