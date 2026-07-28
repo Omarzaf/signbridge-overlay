@@ -206,6 +206,6 @@ if (errors.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(
-    `Foundation verification passed: ${requiredFiles.length} contracts, ${packageFiles.length} package manifest(s), ${approvedRootDevDependencies.size} approved development tools, and ${files.length} repository files checked; no production dependencies or media present.`,
+    `Foundation verification passed: ${requiredFiles.length} required files, ${packageFiles.length} package manifest(s), ${approvedRootDevDependencies.size} approved development tools, and ${files.length} repository files checked; no production dependencies or media present.`,
   );
 }

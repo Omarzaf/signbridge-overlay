@@ -42,8 +42,9 @@ Passed the dependency/media foundation policy, strict type checking, build,
 downloaded.
 
 Workspace control-plane tests
-Passed 12/12. SignBridge resolves through the registry. Workspace doctor remains
-at 0 errors and 13 pre-existing warnings.
+Passed 12/12. SignBridge resolves through the registry. Workspace doctor reports
+0 errors and 14 warnings: 13 pre-existing workspace warnings plus one expected
+task-local warning for the three retained SignBridge worktrees.
 ```
 
 Node 22 remains the declared target and must be verified in the approved
