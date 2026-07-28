@@ -35,6 +35,15 @@ unresolved until a qualified Deaf ASL reviewer approves it.
 - Run manifest: reproducible authoring metadata without sensitive content.
 - Git: source, documentation, tests, and release history.
 
+## Gate 1 operating contracts
+
+- `docs/review-protocol.md`: human linguistic authority and review workflow.
+- `docs/data-provenance.md`: source-to-release lineage.
+- `docs/reproducibility.md`: build, publication, and authoring replay evidence.
+- `docs/accessibility-acceptance.md`: surface and signing-presentation acceptance.
+- `docs/private-evidence-system.md`: access-controlled evidence requirements.
+- `docs/release-certificate-template.md`: exact-artifact release decision.
+
 ## Privacy and release boundary
 
 Public material may include source code, synthetic test fixtures, consented
