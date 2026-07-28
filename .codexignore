@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+private/
+evidence/private/
+media/local/
+fixtures/private/
+*.mp4
+*.mov
+*.webm
+*.m4a
+*.wav
+*.signpack

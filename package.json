@@ -1,0 +1,16 @@
+{
+  "name": "signbridge-overlay",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A lightweight, human-reviewed sign-language overlay protocol and runtime for online and offline video.",
+  "packageManager": "pnpm@11.10.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node tools/verify-baseline.mjs",
+    "lint": "node tools/verify-baseline.mjs",
+    "test": "node tools/verify-baseline.mjs",
+    "verify": "node tools/verify-baseline.mjs"
+  }
+}

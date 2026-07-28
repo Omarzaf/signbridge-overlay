@@ -1,0 +1,22 @@
+# Security
+
+## Viewer and extension
+
+- Bundle executable code locally; do not evaluate remote code.
+- Request the narrowest possible host permissions.
+- Treat page content, captions, imported packs, and manifests as untrusted input.
+- Verify pack schemas, content hashes, sizes, and runtime compatibility.
+- Isolate overlay styles and DOM behavior.
+
+## Authoring service
+
+- Keep credentials in approved environment-secret storage.
+- Authenticate reviewer and publisher actions.
+- Separate proposal, review, and publication permissions.
+- Use immutable audit events without sensitive content.
+- Apply upload limits and validate media types before storage or processing.
+
+## Release
+
+Threat modeling, dependency review, browser CSP inspection, and a negative check
+for private files are required before public deployment.

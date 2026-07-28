@@ -1,0 +1,8 @@
+packages:
+  - apps/*
+  - packages/*
+  - services/*
+
+# The repository pins pnpm for reproducibility but does not auto-download or
+# switch package-manager versions during local verification.
+pmOnFail: ignore
