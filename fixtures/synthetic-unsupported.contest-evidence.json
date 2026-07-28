@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1.0.0",
+  "ledgerId": "evidence_synthetic001",
+  "generatedAt": "2026-01-01T00:00:04.000Z",
+  "entrant": {
+    "type": "individual",
+    "entrantRef": "entrant_synthetic001"
+  },
+  "records": [],
+  "privacy": {
+    "containsPersonalData": false,
+    "containsTranscript": false,
+    "containsPaymentDetails": false
+  }
+}

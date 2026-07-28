@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "1.0.0",
+  "packId": "spk_synthetic000001",
+  "releaseStatus": "draft",
+  "developmentOnly": true,
+  "linguisticReviewStatus": "not_reviewed",
+  "language": {
+    "signedLanguage": "zxx",
+    "region": "ZZ",
+    "dialect": "synthetic-no-signed-language",
+    "audience": "validator test users",
+    "educationalContext": "synthetic contract verification only"
+  },
+  "sourceVideo": {
+    "fingerprint": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "durationMs": 10000
+  },
+  "runtimeCompatibility": {
+    "minimumVersion": "0.1.0"
+  },
+  "participants": {
+    "signerRefs": [],
+    "reviewerRefs": []
+  },
+  "segments": [
+    {
+      "segmentId": "seg_synthetic000001",
+      "startMs": 0,
+      "endMs": 10000,
+      "translationStatus": "unsupported",
+      "reviewStatus": "pending",
+      "decisionHash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "captionFallback": {
+        "language": "en",
+        "text": "Synthetic caption fallback; no reviewed sign mapping exists."
+      },
+      "assetIds": [],
+      "unsupportedReason": "no_reviewed_mapping"
+    }
+  ],
+  "assets": []
+}
