@@ -7,11 +7,11 @@
   "license": "Apache-2.0",
   "packageManager": "pnpm@11.10.0",
   "engines": {
-    "node": ">=22.12 <23"
+    "node": ">=22.13 <23"
   },
   "scripts": {
     "build": "pnpm typecheck && pnpm build:pwa",
-    "build:pwa": "vite build apps/pwa --outDir ../../dist/pwa",
+    "build:pwa": "vite build apps/pwa --outDir ../../dist/pwa --emptyOutDir",
     "dev:pwa": "vite apps/pwa --host 127.0.0.1 --port 4173",
     "lint": "node --check tools/verify-baseline.mjs && node --check tests/baseline/verify-baseline.test.mjs && pnpm typecheck",
     "test": "pnpm test:foundation && pnpm test:unit",
