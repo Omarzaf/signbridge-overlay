@@ -216,6 +216,29 @@ describe("caption pack storage", () => {
     });
   });
 
+  test("reports a failed activation without discarding the stored pack", async () => {
+    const persistence = createMemoryPersistence();
+    const store = createCaptionPackStore({
+      persistence: {
+        ...persistence,
+        setActivePackId: async () => {
+          throw new Error("private database details");
+        },
+      },
+    });
+
+    expect(await store.importBlob(fixtureBlob())).toEqual({
+      ok: false,
+      code: "storage_activation_failed",
+    });
+    expect(
+      await store.getVerified(syntheticManifest.packId),
+    ).toMatchObject({
+      ok: true,
+      value: { packId: syntheticManifest.packId },
+    });
+  });
+
   test("maps persistence failures to stable codes without leaking details", async () => {
     const store = createCaptionPackStore({
       persistence: {

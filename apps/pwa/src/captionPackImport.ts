@@ -20,6 +20,8 @@ const IMPORT_MESSAGES: Readonly<
     "Only synthetic, caption-only draft SignPacks are accepted.",
   storage_unavailable: "Local pack storage is unavailable.",
   storage_failed: "The caption pack could not be stored locally.",
+  storage_activation_failed:
+    "The caption pack was stored and verified, but it will not reopen automatically.",
   pack_id_conflict:
     "A different local caption pack already uses this identifier.",
   integrity_mismatch: "The stored caption pack failed local integrity checks.",

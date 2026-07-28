@@ -21,6 +21,7 @@ export type CaptionPackImportErrorCode =
   | "unsupported_import_profile"
   | "storage_unavailable"
   | "storage_failed"
+  | "storage_activation_failed"
   | "pack_id_conflict"
   | "integrity_mismatch"
   | "not_found";
@@ -317,8 +318,10 @@ export function createCaptionPackStore({
     }
     try {
       await persistence.setActivePackId(parsed.manifest.packId);
-    } catch (error) {
-      return failure(mapPersistenceError(error));
+    } catch {
+      // The pack is already stored and re-verified; only the reload pointer
+      // failed, so this must not be reported as a storage failure.
+      return failure("storage_activation_failed");
     }
     return verified;
   };
