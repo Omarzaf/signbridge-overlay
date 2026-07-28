@@ -289,6 +289,28 @@ describe("createRuntimeController", () => {
     expect(controller.getState()?.mediaTimeMs).toBe(50);
   });
 
+  test("keeps each notification stable during reentrant sampling", () => {
+    const controller = createRuntimeController(createReadyModel());
+    const observedTimes: number[] = [];
+    let nestedSampleTaken = false;
+
+    controller.subscribe(() => {
+      if (!nestedSampleTaken) {
+        nestedSampleTaken = true;
+        controller.sample(snapshot({ currentTimeMs: 200 }));
+      }
+    });
+    controller.subscribe((state) => {
+      observedTimes.push(state.mediaTimeMs ?? -1);
+    });
+
+    const outerState = controller.sample(snapshot({ currentTimeMs: 100 }));
+
+    expect(outerState.mediaTimeMs).toBe(100);
+    expect(observedTimes).toEqual([200, 100]);
+    expect(controller.getState()?.mediaTimeMs).toBe(200);
+  });
+
   test("does not schedule timeout, interval, or animation-frame work", () => {
     const timeoutSpy = vi.spyOn(globalThis, "setTimeout");
     const intervalSpy = vi.spyOn(globalThis, "setInterval");

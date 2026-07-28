@@ -30,12 +30,12 @@ export function createRuntimeController(
     currentState = nextState;
     for (const listener of [...listeners]) {
       try {
-        listener(currentState);
+        listener(nextState);
       } catch {
         // A listener cannot stop state resolution or other subscribers.
       }
     }
-    return currentState;
+    return nextState;
   };
 
   const getState = (): PlaybackState | null => currentState;
