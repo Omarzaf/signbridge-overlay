@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1.0.0",
+  "eventId": "rev_synthetic000001",
+  "sequence": 1,
+  "occurredAt": "2026-01-01T00:00:01.000Z",
+  "environment": "synthetic_test",
+  "packId": "spk_synthetic000001",
+  "segmentId": "seg_synthetic000001",
+  "decisionHash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "actor": {
+    "kind": "authoring_service",
+    "actorRef": "service_synthetic001"
+  },
+  "action": "proposal_created",
+  "translationStatus": "unsupported",
+  "reviewStatus": "pending",
+  "assetIds": [],
+  "reasonCode": "no_reviewed_mapping"
+}

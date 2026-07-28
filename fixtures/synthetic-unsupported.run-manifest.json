@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1.0.0",
+  "runId": "run_synthetic000001",
+  "environment": "synthetic_test",
+  "startedAt": "2026-01-01T00:00:00.000Z",
+  "completedAt": "2026-01-01T00:00:02.000Z",
+  "status": "succeeded",
+  "tool": {
+    "name": "synthetic_fixture",
+    "version": "0.1.0"
+  },
+  "input": {
+    "timedTextHash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    "segmentCount": 1,
+    "signedLanguage": "zxx",
+    "region": "ZZ"
+  },
+  "output": {
+    "proposalLogHash": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+    "reviewEventIds": [
+      "rev_synthetic000001"
+    ]
+  },
+  "privacy": {
+    "containsTranscript": false,
+    "containsIdentity": false,
+    "containsMediaUrl": false
+  }
+}

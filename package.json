@@ -15,7 +15,7 @@
     "test": "pnpm test:foundation && pnpm test:unit",
     "test:e2e": "playwright test",
     "test:foundation": "node --test tests/baseline/verify-baseline.test.mjs",
-    "test:unit": "vitest run",
+    "test:unit": "vitest run --configLoader runner",
     "typecheck": "tsc -p tsconfig.json",
     "verify": "node tools/verify-baseline.mjs && pnpm lint && pnpm test && pnpm build"
   },

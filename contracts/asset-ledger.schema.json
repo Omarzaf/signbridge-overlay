@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://signbridge.example/contracts/asset-ledger.schema.json",
+  "title": "SignBridge Asset Ledger",
+  "description": "Rights, consent, review, and withdrawal evidence for exact signing-media hashes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "ledgerId",
+    "packId",
+    "generatedAt",
+    "developmentOnly",
+    "assets"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "ledgerId": {
+      "type": "string",
+      "pattern": "^ledger_[a-z0-9]{12,64}$"
+    },
+    "packId": {
+      "type": "string",
+      "pattern": "^spk_[a-z0-9]{12,64}$"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "developmentOnly": {
+      "type": "boolean"
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/assetRecord"
+      }
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "assetId": {
+      "type": "string",
+      "pattern": "^ast_[a-z0-9]{12,64}$"
+    },
+    "assetRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assetId",
+        "path",
+        "sha256",
+        "ownerRef",
+        "sourceRef",
+        "assetStatus",
+        "reviewStatus",
+        "consent",
+        "rights",
+        "attribution"
+      ],
+      "properties": {
+        "assetId": {
+          "$ref": "#/$defs/assetId"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^assets/[A-Za-z0-9][A-Za-z0-9._/-]*$",
+          "maxLength": 512
+        },
+        "sha256": {
+          "$ref": "#/$defs/hash"
+        },
+        "ownerRef": {
+          "type": "string",
+          "pattern": "^owner_[a-z0-9]{12,64}$"
+        },
+        "sourceRef": {
+          "type": "string",
+          "pattern": "^source_[a-z0-9]{12,64}$"
+        },
+        "assetStatus": {
+          "enum": ["draft", "licensed", "withdrawn"]
+        },
+        "reviewStatus": {
+          "enum": ["pending", "approved", "changes_requested", "rejected"]
+        },
+        "consent": {
+          "$ref": "#/$defs/consent"
+        },
+        "rights": {
+          "$ref": "#/$defs/rights"
+        },
+        "attribution": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "reviewerApproval": {
+          "$ref": "#/$defs/reviewerApproval"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "assetStatus": {
+                "const": "licensed"
+              }
+            },
+            "required": ["assetStatus"]
+          },
+          "then": {
+            "required": ["reviewerApproval"],
+            "properties": {
+              "reviewStatus": {
+                "const": "approved"
+              },
+              "consent": {
+                "properties": {
+                  "status": {
+                    "const": "granted"
+                  }
+                }
+              },
+              "rights": {
+                "required": ["grantRef", "exactHash", "termModel"]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "consent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "enum": ["pending", "granted", "withdrawn"]
+        },
+        "consentRef": {
+          "type": "string",
+          "pattern": "^consent_[a-z0-9]{12,64}$"
+        }
+      }
+    },
+    "rights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "offlinePlayback",
+        "publicDemo",
+        "contestSubmission",
+        "sponsorPublicity",
+        "modification",
+        "territories"
+      ],
+      "properties": {
+        "grantRef": {
+          "type": "string",
+          "pattern": "^rights_[a-z0-9]{12,64}$"
+        },
+        "exactHash": {
+          "$ref": "#/$defs/hash"
+        },
+        "termModel": {
+          "const": "irrevocable_exact_hash"
+        },
+        "offlinePlayback": {
+          "type": "boolean"
+        },
+        "publicDemo": {
+          "type": "boolean"
+        },
+        "contestSubmission": {
+          "type": "boolean"
+        },
+        "sponsorPublicity": {
+          "type": "boolean"
+        },
+        "modification": {
+          "type": "boolean"
+        },
+        "territories": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "anyOf": [
+              {
+                "const": "worldwide"
+              },
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{2}$"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "reviewerApproval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewerRef", "eventId", "approvedHash"],
+      "properties": {
+        "reviewerRef": {
+          "type": "string",
+          "pattern": "^reviewer_[a-z0-9]{12,64}$"
+        },
+        "eventId": {
+          "type": "string",
+          "pattern": "^rev_[a-z0-9]{12,64}$"
+        },
+        "approvedHash": {
+          "$ref": "#/$defs/hash"
+        }
+      }
+    }
+  }
+}

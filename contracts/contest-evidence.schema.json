@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://signbridge.example/contracts/contest-evidence.schema.json",
+  "title": "SignBridge Contest Evidence Ledger",
+  "description": "Privacy-minimized references for substantiating contest claims without committing raw private evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "ledgerId",
+    "generatedAt",
+    "entrant",
+    "records",
+    "privacy"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "ledgerId": {
+      "type": "string",
+      "pattern": "^evidence_[a-z0-9]{12,64}$"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "entrant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "entrantRef"],
+      "properties": {
+        "type": {
+          "enum": ["individual", "team", "organization"]
+        },
+        "entrantRef": {
+          "type": "string",
+          "pattern": "^entrant_[a-z0-9]{12,64}$"
+        }
+      }
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/record"
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "containsPersonalData",
+        "containsTranscript",
+        "containsPaymentDetails"
+      ],
+      "properties": {
+        "containsPersonalData": {
+          "const": false
+        },
+        "containsTranscript": {
+          "const": false
+        },
+        "containsPaymentDetails": {
+          "const": false
+        }
+      }
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidenceId",
+        "category",
+        "status",
+        "periodStart",
+        "periodEnd",
+        "sourceHash",
+        "relationship",
+        "measurement"
+      ],
+      "properties": {
+        "evidenceId": {
+          "type": "string",
+          "pattern": "^evd_[a-z0-9]{12,64}$"
+        },
+        "category": {
+          "enum": [
+            "user_count",
+            "pilot_participant_count",
+            "revenue",
+            "expense",
+            "refund",
+            "testimonial_consent",
+            "gemini_call",
+            "deployment",
+            "demo"
+          ]
+        },
+        "status": {
+          "enum": ["draft", "verified", "withdrawn"]
+        },
+        "periodStart": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "periodEnd": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sourceHash": {
+          "$ref": "#/$defs/hash"
+        },
+        "relationship": {
+          "enum": ["arms_length", "related_party", "not_applicable"]
+        },
+        "measurement": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/countMeasurement"
+            },
+            {
+              "$ref": "#/$defs/moneyMeasurement"
+            },
+            {
+              "$ref": "#/$defs/artifactMeasurement"
+            }
+          ]
+        },
+        "consentRef": {
+          "type": "string",
+          "pattern": "^consent_[a-z0-9]{12,64}$"
+        }
+      }
+    },
+    "countMeasurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value", "unit"],
+      "properties": {
+        "kind": {
+          "const": "count"
+        },
+        "value": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unit": {
+          "enum": ["users", "participants", "calls"]
+        }
+      }
+    },
+    "moneyMeasurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "minorUnits", "currency"],
+      "properties": {
+        "kind": {
+          "const": "money"
+        },
+        "minorUnits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        }
+      }
+    },
+    "artifactMeasurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "artifactHash"],
+      "properties": {
+        "kind": {
+          "const": "artifact"
+        },
+        "artifactHash": {
+          "$ref": "#/$defs/hash"
+        }
+      }
+    }
+  }
+}

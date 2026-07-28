@@ -1,0 +1,397 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://signbridge.example/contracts/signpack.schema.json",
+  "title": "SignBridge SignPack",
+  "description": "Immutable playback manifest for language-specific, human-reviewed signing media or explicit caption fallback.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "packId",
+    "releaseStatus",
+    "developmentOnly",
+    "linguisticReviewStatus",
+    "language",
+    "sourceVideo",
+    "runtimeCompatibility",
+    "participants",
+    "segments",
+    "assets"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "packId": {
+      "$ref": "#/$defs/packId"
+    },
+    "releaseStatus": {
+      "enum": ["draft", "published"]
+    },
+    "developmentOnly": {
+      "type": "boolean"
+    },
+    "linguisticReviewStatus": {
+      "enum": ["not_reviewed", "human_reviewed"]
+    },
+    "language": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "signedLanguage",
+        "region",
+        "dialect",
+        "audience",
+        "educationalContext"
+      ],
+      "properties": {
+        "signedLanguage": {
+          "$ref": "#/$defs/iso639_3"
+        },
+        "region": {
+          "$ref": "#/$defs/region"
+        },
+        "dialect": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "audience": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "educationalContext": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        }
+      }
+    },
+    "sourceVideo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fingerprint", "durationMs"],
+      "properties": {
+        "fingerprint": {
+          "$ref": "#/$defs/hash"
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "runtimeCompatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimumVersion"],
+      "properties": {
+        "minimumVersion": {
+          "$ref": "#/$defs/semver"
+        }
+      }
+    },
+    "participants": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["signerRefs", "reviewerRefs"],
+      "properties": {
+        "signerRefs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/signerRef"
+          }
+        },
+        "reviewerRefs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reviewerRef"
+          }
+        }
+      }
+    },
+    "segments": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/segment"
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/asset"
+      }
+    },
+    "publication": {
+      "$ref": "#/$defs/publication"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "releaseStatus": {
+            "const": "published"
+          }
+        },
+        "required": ["releaseStatus"]
+      },
+      "then": {
+        "required": ["publication"],
+        "properties": {
+          "developmentOnly": {
+            "const": false
+          },
+          "linguisticReviewStatus": {
+            "const": "human_reviewed"
+          }
+        }
+      },
+      "else": {
+        "not": {
+          "required": ["publication"]
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+    },
+    "iso639_3": {
+      "type": "string",
+      "pattern": "^[a-z]{3}$"
+    },
+    "region": {
+      "type": "string",
+      "pattern": "^[A-Z]{2}$"
+    },
+    "packId": {
+      "type": "string",
+      "pattern": "^spk_[a-z0-9]{12,64}$"
+    },
+    "segmentId": {
+      "type": "string",
+      "pattern": "^seg_[a-z0-9]{12,64}$"
+    },
+    "assetId": {
+      "type": "string",
+      "pattern": "^ast_[a-z0-9]{12,64}$"
+    },
+    "eventId": {
+      "type": "string",
+      "pattern": "^rev_[a-z0-9]{12,64}$"
+    },
+    "signerRef": {
+      "type": "string",
+      "pattern": "^signer_[a-z0-9]{12,64}$"
+    },
+    "reviewerRef": {
+      "type": "string",
+      "pattern": "^reviewer_[a-z0-9]{12,64}$"
+    },
+    "publisherId": {
+      "type": "string",
+      "pattern": "^publisher_[a-z0-9]{12,64}$"
+    },
+    "captionFallback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["language", "text"],
+      "properties": {
+        "language": {
+          "type": "string",
+          "pattern": "^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      }
+    },
+    "segment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "segmentId",
+        "startMs",
+        "endMs",
+        "translationStatus",
+        "reviewStatus",
+        "decisionHash",
+        "captionFallback",
+        "assetIds"
+      ],
+      "properties": {
+        "segmentId": {
+          "$ref": "#/$defs/segmentId"
+        },
+        "startMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "endMs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "translationStatus": {
+          "enum": ["proposed", "mapped", "unsupported"]
+        },
+        "reviewStatus": {
+          "enum": ["pending", "approved", "changes_requested", "rejected"]
+        },
+        "decisionHash": {
+          "$ref": "#/$defs/hash"
+        },
+        "captionFallback": {
+          "$ref": "#/$defs/captionFallback"
+        },
+        "assetIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/assetId"
+          }
+        },
+        "unsupportedReason": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{2,63}$"
+        },
+        "proposalId": {
+          "type": "string",
+          "pattern": "^proposal_[a-z0-9]{12,64}$"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "translationStatus": {
+                "const": "mapped"
+              }
+            },
+            "required": ["translationStatus"]
+          },
+          "then": {
+            "properties": {
+              "assetIds": {
+                "minItems": 1
+              }
+            },
+            "not": {
+              "required": ["unsupportedReason"]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "translationStatus": {
+                "const": "unsupported"
+              }
+            },
+            "required": ["translationStatus"]
+          },
+          "then": {
+            "required": ["unsupportedReason"],
+            "properties": {
+              "assetIds": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "translationStatus": {
+                "const": "proposed"
+              }
+            },
+            "required": ["translationStatus"]
+          },
+          "then": {
+            "properties": {
+              "reviewStatus": {
+                "const": "pending"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assetId", "path", "sha256", "mediaType", "durationMs"],
+      "properties": {
+        "assetId": {
+          "$ref": "#/$defs/assetId"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^assets/[A-Za-z0-9][A-Za-z0-9._/-]*$",
+          "maxLength": 512
+        },
+        "sha256": {
+          "$ref": "#/$defs/hash"
+        },
+        "mediaType": {
+          "enum": ["video/mp4", "video/webm"]
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "publication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "releaseId",
+        "releasedAt",
+        "publisherId",
+        "assetLedgerHash",
+        "reviewLogHash",
+        "humanApprovalEventIds"
+      ],
+      "properties": {
+        "releaseId": {
+          "$ref": "#/$defs/hash"
+        },
+        "releasedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "publisherId": {
+          "$ref": "#/$defs/publisherId"
+        },
+        "assetLedgerHash": {
+          "$ref": "#/$defs/hash"
+        },
+        "reviewLogHash": {
+          "$ref": "#/$defs/hash"
+        },
+        "humanApprovalEventIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/eventId"
+          }
+        }
+      }
+    }
+  }
+}

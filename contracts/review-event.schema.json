@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://signbridge.example/contracts/review-event.schema.json",
+  "title": "SignBridge Review Event",
+  "description": "Append-only proposal or human-review decision tied to an exact segment decision hash.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "eventId",
+    "sequence",
+    "occurredAt",
+    "environment",
+    "packId",
+    "segmentId",
+    "decisionHash",
+    "actor",
+    "action",
+    "translationStatus",
+    "reviewStatus",
+    "assetIds"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "eventId": {
+      "$ref": "#/$defs/eventId"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "environment": {
+      "enum": ["synthetic_test", "development", "production"]
+    },
+    "packId": {
+      "$ref": "#/$defs/packId"
+    },
+    "segmentId": {
+      "$ref": "#/$defs/segmentId"
+    },
+    "decisionHash": {
+      "$ref": "#/$defs/hash"
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "actorRef"],
+      "properties": {
+        "kind": {
+          "enum": ["authoring_service", "human_reviewer"]
+        },
+        "actorRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        }
+      }
+    },
+    "action": {
+      "enum": [
+        "proposal_created",
+        "approved",
+        "unsupported_confirmed",
+        "changes_requested",
+        "rejected"
+      ]
+    },
+    "translationStatus": {
+      "enum": ["proposed", "mapped", "unsupported"]
+    },
+    "reviewStatus": {
+      "enum": ["pending", "approved", "changes_requested", "rejected"]
+    },
+    "assetIds": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/assetId"
+      }
+    },
+    "reasonCode": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{2,63}$"
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "packId": {
+      "type": "string",
+      "pattern": "^spk_[a-z0-9]{12,64}$"
+    },
+    "segmentId": {
+      "type": "string",
+      "pattern": "^seg_[a-z0-9]{12,64}$"
+    },
+    "assetId": {
+      "type": "string",
+      "pattern": "^ast_[a-z0-9]{12,64}$"
+    },
+    "eventId": {
+      "type": "string",
+      "pattern": "^rev_[a-z0-9]{12,64}$"
+    }
+  }
+}
