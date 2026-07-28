@@ -43,6 +43,27 @@
           Synthetic caption fallback; no reviewed sign mapping exists.
         </p>
       </section>
+
+      <section class="caption-pack-import" aria-labelledby="import-heading">
+        <div>
+          <p class="eyebrow">Local-only storage</p>
+          <h2 id="import-heading">Import a synthetic caption pack</h2>
+          <p>
+            JSON bytes are structurally validated, hashed, stored in this
+            browser, and rechecked before use. This does not publish or
+            linguistically approve a pack.
+          </p>
+        </div>
+        <label for="caption-pack-input">Synthetic SignPack JSON</label>
+        <input
+          id="caption-pack-input"
+          type="file"
+          accept=".json,application/json"
+        />
+        <p id="caption-pack-status" role="status" aria-live="polite">
+          No local caption pack has been imported.
+        </p>
+      </section>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

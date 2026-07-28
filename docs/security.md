@@ -7,6 +7,11 @@
 - Treat page content, captions, imported packs, and manifests as untrusted input.
 - Verify pack schemas, content hashes, sizes, and runtime compatibility.
 - Isolate overlay styles and DOM behavior.
+- Enforce the local import byte limit before allocation.
+- Rehash and revalidate stored manifest bytes on every IndexedDB read.
+- Treat a local digest as corruption evidence only, never publisher
+  authentication or publication authority.
+- Never overwrite a different record sharing the same pack identifier.
 
 ## Authoring service
 

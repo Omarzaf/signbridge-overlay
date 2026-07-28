@@ -28,7 +28,8 @@ them.
   review decisions with licensed assets into an immutable pack.
 - `packages/video-adapters`: implemented HTML5 lifecycle adapter and future
   YouTube adapter.
-- `packages/pack-storage`: Cache Storage and IndexedDB integration.
+- `packages/pack-storage`: implemented synthetic caption-pack IndexedDB
+  integrity and future Cache Storage media integration.
 - `packages/event-contracts`: privacy-preserving operational event definitions.
 - `apps/pwa`: implemented synthetic fallback shell and future local-video,
   import/export, quota, and offline user experience.
@@ -102,6 +103,24 @@ cannot reuse an earlier fingerprint.
 The Goal 3a PWA shell is intentionally caption-only. It feeds the draft
 synthetic fixture through the same preparation boundary and renders the
 resulting `not_published` state instead of fabricating a ready model.
+
+The Goal 3b import path is:
+
+```text
+local Blob
+  -> byte limit
+  -> fatal UTF-8 decode
+  -> JSON and SignPack validation
+  -> synthetic caption-only profile
+  -> exact-byte SHA-256
+  -> IndexedDB
+  -> read-back digest and validation
+  -> blocked not_published runtime
+```
+
+IndexedDB records contain only exact manifest bytes, the pack identifier, and
+the local digest. They contain no media, identity, credentials, viewing
+history, or publication authority.
 
 ## Extension permission contract
 

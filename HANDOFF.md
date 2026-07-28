@@ -2,10 +2,9 @@
 
 ## Goal
 
-Complete Goal 3a: fix reentrant runtime notifications and connect a
-dependency-free HTML5 media-clock adapter to an accessible, synthetic-only
-caption-fallback shell without real signing content, cloud access, or public
-release.
+Complete Goal 3b: add size-limited, structurally validated, digest-verified
+IndexedDB import and retrieval for synthetic caption-only SignPacks without
+real signing content, cloud access, or public release.
 
 ## Decisions already made
 
@@ -50,6 +49,14 @@ release.
   stay visible.
 - Keyboard controls hide, resize, and reposition the overlay without adding a
   production dependency or media asset.
+- Local imports reject empty, oversized, unreadable, malformed, real-language,
+  reviewed, mapped, and asset-bearing content.
+- Exact imported bytes are hashed, stored in IndexedDB, read back, rehashed,
+  reparsed, and revalidated before the manifest is returned.
+- Identical bytes are idempotent, while a conflicting pack ID fails without
+  overwrite.
+- Reload restores only a locally verified synthetic caption pack and keeps the
+  runtime blocked as `not_published`.
 - Forged models, malformed or hostile inputs, source replacement, unsupported
   content, unavailable assets, incompatible segments, and unapproved playback
   rates fail visibly to caption-preserving states.
@@ -62,16 +69,14 @@ release.
 ```text
 pnpm verify
 Passed the dependency/media foundation policy, strict type checking, build,
-5/5 foundation tests, and 76/76 Vitest tests: 34 contract, 35 Goal 2
-sync/runtime, and 7 Goal 3a adapter/overlay tests. Baseline verification
-requires 52 project files.
+5/5 foundation tests, and 84/84 Vitest tests: 34 contract, 35 Goal 2
+sync/runtime, 7 Goal 3a adapter/overlay, and 8 Goal 3b storage/import tests.
+Baseline verification requires 58 project files.
 
-The PWA production build passes at 21.88 kB JavaScript and 2.85 kB CSS before
-compression. Four Playwright cases are discovered across desktop and small
-phone, but Playwright Chromium has not been downloaded, so the CLI E2E run is
-blocked before page execution. Separate in-app browser inspection passed the
-desktop and 320 px layouts, keyboard controls, explicit `not_published` state,
-caption visibility, zero horizontal overflow, and zero page console errors.
+The Playwright suite passes 8/8 across desktop and small-phone Chromium,
+including IndexedDB persistence across reload and invalid-import preservation.
+Checksum-verified Node 22.23.1 passes the complete verification suite. The
+declared minimum is Node 22.13 because pinned pnpm 11.10.0 rejects Node 22.12.
 
 Workspace control-plane tests
 Passed 12/12. SignBridge resolves through the registry. Workspace doctor reports
@@ -79,8 +84,8 @@ Passed 12/12. SignBridge resolves through the registry. Workspace doctor reports
 task-local warning for the three retained SignBridge worktrees.
 ```
 
-Node 22 remains the declared target and must be verified in the approved
-toolchain/CI gate.
+Node 22 is the declared target and is verified locally. A repeatable CI gate
+still needs to encode that toolchain.
 
 ## Remaining human gates
 
@@ -96,19 +101,19 @@ toolchain/CI gate.
    evidence, and identities.
 6. Confirm whether individual entrant status requires any contributor or
    publicity agreement.
-7. Verify the declared Node 22/pnpm toolchain in CI.
+7. Add CI for the verified Node 22/pnpm/Chromium toolchain.
 
 ## Explicitly not delivered
 
-- No sign-media renderer, YouTube adapter, offline pack storage, Chrome
+- No sign-media renderer, YouTube adapter, media cache, Chrome
   extension, reviewer console, Gemini authoring service, or publisher
   implementation.
 - No real ASL mapping, signer video, source video, participant record, consent
   grant, rights grant, cloud resource, or contest submission.
-- No push, merge, deployment, browser download, outreach, or production action.
+- No push, merge, deployment, outreach, or production action.
 
-The next slice may add offline pack import and verified local storage while
-remaining caption-only. Any active signing path, real-language pack, public
-demo, or accessibility claim remains blocked on the reviewer, final language
-scope, rights-cleared golden content, exact-hash grants, and private evidence
-system.
+The next engineering slice may add quota reporting and explicit user-controlled
+removal for local caption packs. Any active signing path, real-language pack,
+public demo, or accessibility claim remains blocked on the reviewer, final
+language scope, rights-cleared golden content, exact-hash grants, and private
+evidence system.

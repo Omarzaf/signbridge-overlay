@@ -17,7 +17,11 @@ test("keeps the synthetic boundary and caption fallback visible", async ({
     "data-reason",
     "not_published",
   );
-  await expect(page.getByRole("status")).toHaveText(
+  await expect(
+    page
+      .getByRole("region", { name: "Signing overlay" })
+      .getByRole("status"),
+  ).toHaveText(
     "Signing is unavailable for this synthetic draft.",
   );
   await expect(
@@ -35,15 +39,18 @@ test("supports keyboard controls and a 320px viewport", async ({ page }) => {
   await page.goto("/");
 
   const hideButton = page.getByRole("button", { name: "Hide overlay" });
+  const overlayStatus = page
+    .getByRole("region", { name: "Signing overlay" })
+    .getByRole("status");
   await hideButton.focus();
   await page.keyboard.press("Enter");
   await expect(
     page.getByRole("button", { name: "Restore overlay" }),
   ).toBeFocused();
-  await expect(page.getByRole("status")).toBeHidden();
+  await expect(overlayStatus).toBeHidden();
 
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("status")).toBeVisible();
+  await expect(overlayStatus).toBeVisible();
   await page.getByRole("button", { name: "Large overlay" }).click();
   await expect(
     page.getByRole("button", { name: "Standard overlay" }),
@@ -57,4 +64,70 @@ test("supports keyboard controls and a 320px viewport", async ({ page }) => {
     () => document.documentElement.scrollWidth > window.innerWidth,
   );
   expect(horizontalOverflow).toBe(false);
+});
+
+test("imports and restores a verified local synthetic caption pack", async ({
+  page,
+}) => {
+  const externalRequests: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.hostname !== "127.0.0.1") {
+      externalRequests.push(request.url());
+    }
+  });
+  await page.goto("/");
+
+  await page
+    .getByLabel("Synthetic SignPack JSON")
+    .setInputFiles("fixtures/synthetic-unsupported.signpack.json");
+  const importRegion = page.getByRole("region", {
+    name: "Import a synthetic caption pack",
+  });
+  await expect(importRegion.getByRole("status")).toHaveText(
+    "Structural validation and local digest passed. This draft is not published and cannot activate signing.",
+  );
+  await expect(
+    page.getByRole("region", { name: "Signing overlay" }),
+  ).toHaveAttribute("data-reason", "not_published");
+  await expect(
+    page.getByText(
+      "Synthetic caption fallback; no reviewed sign mapping exists.",
+    ),
+  ).toBeVisible();
+  await expect(page.locator('[data-state="active_sign"]')).toHaveCount(0);
+
+  await page.reload();
+  await expect(
+    page
+      .getByRole("region", { name: "Import a synthetic caption pack" })
+      .getByRole("status"),
+  ).toHaveText(
+    "Verified local synthetic caption pack restored. This draft remains unpublished.",
+  );
+  await expect(
+    page.getByRole("region", { name: "Signing overlay" }),
+  ).toHaveAttribute("data-reason", "not_published");
+  expect(externalRequests).toEqual([]);
+});
+
+test("rejects an invalid local pack without changing playback state", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByLabel("Synthetic SignPack JSON")
+    .setInputFiles("fixtures/synthetic-invalid-caption-pack.json");
+
+  await expect(
+    page
+      .getByRole("region", { name: "Import a synthetic caption pack" })
+      .getByRole("status"),
+  ).toHaveText(
+    "The selected file is not a valid SignPack.",
+  );
+  await expect(
+    page.getByRole("region", { name: "Signing overlay" }),
+  ).toHaveAttribute("data-reason", "not_published");
+  await expect(page.locator('[data-state="active_sign"]')).toHaveCount(0);
 });

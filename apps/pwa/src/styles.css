@@ -178,6 +178,56 @@ main {
   margin-bottom: 0;
 }
 
+.caption-pack-import {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.85rem;
+  margin-top: 1rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border: 1px solid #466387;
+  border-radius: 0.85rem;
+  background: #0a192b;
+}
+
+.caption-pack-import h2 {
+  margin-block: 0.35rem;
+}
+
+.caption-pack-import p {
+  max-width: 48rem;
+  margin-block: 0.35rem;
+  color: #c8d7ec;
+  line-height: 1.55;
+}
+
+.caption-pack-import label {
+  font-weight: 750;
+}
+
+.caption-pack-import input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 0.65rem;
+  border: 1px solid #8fc9ff;
+  border-radius: 0.55rem;
+  background: #102b49;
+  color: #fff;
+  font: inherit;
+}
+
+.caption-pack-import input:focus-visible {
+  outline: 3px solid #ffdc8c;
+  outline-offset: 3px;
+}
+
+#caption-pack-status {
+  min-height: 1.5rem;
+  color: #bce4ff;
+  font-weight: 700;
+}
+
 [hidden] {
   display: none !important;
 }
@@ -204,13 +254,19 @@ main {
   .signbridge-overlay__controls {
     display: grid;
   }
+
+  .caption-pack-import {
+    padding: 1rem;
+  }
 }
 
 @media (forced-colors: active) {
   .test-boundary,
   .player-shell,
   .signbridge-overlay,
-  .signbridge-overlay button {
+  .signbridge-overlay button,
+  .caption-pack-import,
+  .caption-pack-import input {
     border-color: CanvasText;
   }
 }

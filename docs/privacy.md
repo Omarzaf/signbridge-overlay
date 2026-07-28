@@ -5,6 +5,11 @@
 The viewer should process packs and video locally. It must not upload local
 video, viewing history, or transcript content as a condition of playback.
 
+Synthetic caption-pack imports remain in browser IndexedDB. The application
+does not log or display imported filenames, raw validation input, exception
+text, or caption contents beyond the selected independent caption surface.
+Clearing this origin's browser storage removes those local records.
+
 The authoring service may receive explicitly submitted timed text. Production
 logs may record model version, latency, cost, outcome codes, and anonymous pack
 identifiers, but not transcript text, participant identities, or private media

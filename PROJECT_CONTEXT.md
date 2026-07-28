@@ -81,7 +81,7 @@ authority.
   source-mismatched, and gap states fall back to captions.
 
 The core has no DOM, media-element ownership, network access, or cloud
-dependency. YouTube adapters, sign-media rendering, offline storage, and
+dependency. YouTube adapters, sign-media rendering, offline media storage, and
 browser/device accessibility evidence remain future work. Synthetic tests do
 not represent a real language selection, reviewed media, or a published
 product.
@@ -95,9 +95,26 @@ and uses media-driven frame callbacks without an independent timer.
 
 The local PWA shell deliberately loads the draft `zxx`/`ZZ` fixture. Preparation
 blocks it as `not_published`, the accessible overlay exposes that state, and the
-source caption remains independently visible. The shell contains no media,
+source caption remains independently visible. At this milestone, the shell
+contained no media,
 signed-language content, fake published manifest, active signing path, network
 request, analytics, service worker, or storage.
+
+## Goal 3b local caption-pack boundary
+
+The browser accepts only small local JSON files that pass the SignPack schema
+and an additional synthetic caption-only profile: draft, development-only,
+unreviewed, `zxx`/`ZZ`, no assets, and only pending unsupported segments.
+
+The exact bytes receive a SHA-256 digest before IndexedDB storage. Every read
+rehashes, reparses, revalidates, and rechecks the profile before returning the
+manifest. Duplicate identical bytes are idempotent; a duplicate pack ID with
+different bytes fails without overwrite.
+
+This assurance is `local_storage_integrity_only`. It detects accidental local
+corruption but does not authenticate publication, a reviewer, linguistic
+quality, rights, consent, or current withdrawal state. Cache Storage and media
+bytes remain out of scope.
 
 ## Privacy and release boundary
 
