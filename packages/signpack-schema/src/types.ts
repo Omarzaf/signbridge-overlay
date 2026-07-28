@@ -177,16 +177,37 @@ export interface AssetLedger {
   readonly assets: readonly AssetLedgerRecord[];
 }
 
+export const CONTEST_EVIDENCE_CATEGORIES = [
+  "education_category_relevance",
+  "google_cloud_product",
+  "gemini_production_call",
+  "reused_work_disclosure",
+  "repository_access_license",
+  "demo",
+  "demo_media_rights",
+  "free_test_surface",
+  "arms_length_revenue",
+  "monthly_arms_length_revenue",
+  "related_party_revenue",
+  "expense",
+  "marketing_spend",
+  "user_count",
+  "user_breakdown",
+  "pilot_participant_count",
+  "feedback_consent",
+  "production_evidence",
+  "entrant_declaration",
+  "organizer_readiness",
+  "refund",
+  "language_accuracy",
+  "synchronization",
+  "offline_operation",
+  "small_phone_access",
+  "accessibility",
+] as const;
+
 export type ContestEvidenceCategory =
-  | "user_count"
-  | "pilot_participant_count"
-  | "revenue"
-  | "expense"
-  | "refund"
-  | "testimonial_consent"
-  | "gemini_call"
-  | "deployment"
-  | "demo";
+  (typeof CONTEST_EVIDENCE_CATEGORIES)[number];
 
 export type ContestMeasurement =
   | {
@@ -248,13 +269,13 @@ export type ValidationResult<T> =
       readonly issues: readonly ValidationIssue[];
     };
 
-export interface PublicationBundle {
+export interface PublicationPreflightInput {
   readonly signPack: unknown;
   readonly reviewEvents: unknown;
   readonly assetLedger: unknown;
 }
 
-export interface ValidatedPublicationBundle {
+export interface StructuralPublicationPreflight {
   readonly signPack: SignPack;
   readonly reviewEvents: readonly ReviewEvent[];
   readonly assetLedger: AssetLedger;

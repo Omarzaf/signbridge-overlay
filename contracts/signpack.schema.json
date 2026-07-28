@@ -148,6 +148,29 @@
           },
           "linguisticReviewStatus": {
             "const": "human_reviewed"
+          },
+          "segments": {
+            "items": {
+              "allOf": [
+                {
+                  "properties": {
+                    "reviewStatus": {
+                      "const": "approved"
+                    }
+                  }
+                },
+                {
+                  "not": {
+                    "properties": {
+                      "translationStatus": {
+                        "const": "proposed"
+                      }
+                    },
+                    "required": ["translationStatus"]
+                  }
+                }
+              ]
+            }
           }
         }
       },
