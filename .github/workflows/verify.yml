@@ -1,0 +1,49 @@
+name: Verify
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["22.13", "24"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the dependency and media foundation
+        # Runs before any package manager so a hostile or unapproved manifest
+        # cannot execute an install script first.
+        run: node tools/verify-baseline.mjs
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Enable the pinned package manager
+        run: corepack enable
+
+      - name: Install the approved development toolchain
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify
+        run: pnpm verify
+
+      - name: Install the Chromium test browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run browser tests
+        run: pnpm test:e2e

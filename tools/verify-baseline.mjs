@@ -199,10 +199,20 @@ if (!String(rootPackageJson.packageManager).startsWith("pnpm@")) {
 }
 
 const lockfile = await readFile(new URL("pnpm-lock.yaml", root), "utf8");
+
+function escapeForPattern(value) {
+  return value.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
 for (const [name, version] of approvedRootDevDependencies) {
-  const key = name.startsWith("@") ? `'${name}'` : name;
-  const lockfileEntry = `${key}:\n        specifier: ${version}`;
-  if (!lockfile.includes(lockfileEntry)) {
+  // Tolerates the lockfile's indentation and optional quoting so a pnpm
+  // formatting change cannot silently disable this check.
+  const lockfileEntry = new RegExp(
+    `(?:^|\\n)[ \\t]*'?${escapeForPattern(name)}'?:[ \\t]*\\n` +
+      `[ \\t]*specifier:[ \\t]*${escapeForPattern(version)}[ \\t]*(?:\\n|$)`,
+    "u",
+  );
+  if (!lockfileEntry.test(lockfile)) {
     errors.push(`pnpm-lock.yaml is missing approved ${name}@${version}`);
   }
 }
