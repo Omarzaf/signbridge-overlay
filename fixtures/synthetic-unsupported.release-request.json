@@ -19,7 +19,7 @@
     ],
     "modification": false,
     "hosting": false,
-    "redistribution": false,
+    "redistribution": true,
     "sublicensing": false
   }
 }

@@ -11,6 +11,13 @@ SignPack, its supplied review events and asset ledger, and an explicit
 review decisions, signer/consent sets, requested-scope coverage, and exact
 lowercase SHA-256 reference syntax.
 
+The latest supplied valid event for a pack and segment controls structural
+finality, including a later authoring proposal. Release-operation booleans are
+additional requested rights, not opt-outs from inherent delivery needs:
+redistribution is always required; hosted/public channels derive hosting,
+demo/sponsor media derive modification, and sponsor publicity derives
+sublicensing.
+
 Successful output is marked `assurance: structural_preflight_only`. It is
 **not release authorization** and cannot emit `releaseStatus: published` or
 publication metadata. The preflight does not have authoritative log access,
