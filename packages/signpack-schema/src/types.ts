@@ -253,6 +253,22 @@ export const CONTEST_EVIDENCE_CATEGORIES = [
 export type ContestEvidenceCategory =
   (typeof CONTEST_EVIDENCE_CATEGORIES)[number];
 
+export const CONTEST_EVIDENCE_METHODS = [
+  "aggregate_reconciliation",
+  "platform_export",
+  "runtime_log",
+  "public_artifact",
+  "human_declaration",
+] as const;
+
+export type ContestEvidenceMethod =
+  (typeof CONTEST_EVIDENCE_METHODS)[number];
+
+export type ContestEvidenceStatus =
+  | "draft"
+  | "evidence_linked"
+  | "withdrawn";
+
 export type ContestMeasurement =
   | {
       readonly kind: "count";
@@ -269,17 +285,31 @@ export type ContestMeasurement =
       readonly artifactHash: string;
     };
 
-export interface ContestEvidenceRecord {
+interface ContestEvidenceRecordBase {
   readonly evidenceId: string;
-  readonly category: ContestEvidenceCategory;
-  readonly status: "draft" | "verified" | "withdrawn";
+  readonly status: ContestEvidenceStatus;
   readonly periodStart: string;
   readonly periodEnd: string;
   readonly sourceHash: string;
+  readonly metricDefinition: string;
+  readonly evidenceMethod: ContestEvidenceMethod;
   readonly relationship: "arms_length" | "related_party" | "not_applicable";
   readonly measurement: ContestMeasurement;
   readonly consentRef?: string;
 }
+
+export type ContestEvidenceRecord =
+  | (ContestEvidenceRecordBase & {
+      readonly category: "monthly_arms_length_revenue";
+      readonly periodMonth: string;
+    })
+  | (ContestEvidenceRecordBase & {
+      readonly category: Exclude<
+        ContestEvidenceCategory,
+        "monthly_arms_length_revenue"
+      >;
+      readonly periodMonth?: never;
+    });
 
 export interface ContestEvidence {
   readonly schemaVersion: SchemaVersion;

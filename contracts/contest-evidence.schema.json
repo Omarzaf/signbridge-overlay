@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://signbridge.example/contracts/contest-evidence.schema.json",
   "title": "SignBridge Contest Evidence Ledger",
-  "description": "Privacy-minimized references for substantiating contest claims without committing raw private evidence.",
+  "description": "Privacy-minimized claim records. evidence_linked means only that a public-safe evidence reference exists; it does not verify the claim.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -23,7 +23,8 @@
     },
     "generatedAt": {
       "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{3})?Z$"
     },
     "entrant": {
       "type": "object",
@@ -81,6 +82,8 @@
         "periodStart",
         "periodEnd",
         "sourceHash",
+        "metricDefinition",
+        "evidenceMethod",
         "relationship",
         "measurement"
       ],
@@ -120,18 +123,39 @@
           ]
         },
         "status": {
-          "enum": ["draft", "verified", "withdrawn"]
+          "description": "evidence_linked records point to privacy-safe evidence but do not assert that the claim is true.",
+          "enum": ["draft", "evidence_linked", "withdrawn"]
         },
         "periodStart": {
           "type": "string",
-          "format": "date-time"
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{3})?Z$"
         },
         "periodEnd": {
           "type": "string",
-          "format": "date-time"
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{3})?Z$"
+        },
+        "periodMonth": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])$"
         },
         "sourceHash": {
           "$ref": "#/$defs/hash"
+        },
+        "metricDefinition": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "evidenceMethod": {
+          "enum": [
+            "aggregate_reconciliation",
+            "platform_export",
+            "runtime_log",
+            "public_artifact",
+            "human_declaration"
+          ]
         },
         "relationship": {
           "enum": ["arms_length", "related_party", "not_applicable"]
@@ -153,7 +177,27 @@
           "type": "string",
           "pattern": "^consent_[a-z0-9]{12,64}$"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "category": {
+                "const": "monthly_arms_length_revenue"
+              }
+            },
+            "required": ["category"]
+          },
+          "then": {
+            "required": ["periodMonth"]
+          },
+          "else": {
+            "not": {
+              "required": ["periodMonth"]
+            }
+          }
+        }
+      ]
     },
     "countMeasurement": {
       "type": "object",
@@ -165,7 +209,8 @@
         },
         "value": {
           "type": "integer",
-          "minimum": 0
+          "minimum": 0,
+          "maximum": 9007199254740991
         },
         "unit": {
           "enum": ["users", "participants", "calls"]
@@ -182,7 +227,8 @@
         },
         "minorUnits": {
           "type": "integer",
-          "minimum": 0
+          "minimum": 0,
+          "maximum": 9007199254740991
         },
         "currency": {
           "type": "string",
