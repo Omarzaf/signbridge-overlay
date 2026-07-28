@@ -34,7 +34,13 @@ jobs:
           node-version: ${{ matrix.node-version }}
 
       - name: Enable the pinned package manager
-        run: corepack enable
+        # The corepack bundled with Node 22.13 carries an outdated registry
+        # signing key and fails to resolve pnpm ("Cannot find matching keyid").
+        # Updating corepack first keeps the pinned pnpm@11.10.0 from
+        # package.json authoritative on every Node line.
+        run: |
+          npm install --global corepack@latest
+          corepack enable
 
       - name: Install the approved development toolchain
         run: pnpm install --frozen-lockfile
