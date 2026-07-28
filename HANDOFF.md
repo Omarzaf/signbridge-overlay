@@ -63,20 +63,31 @@ real signing content, cloud access, or public release.
 - Synthetic tests cover fractional boundaries, seeks, pauses, rate recovery,
   model and state mutation, changing getters, subscriber ordering, and
   timer-free operation.
+- Manifest integrity is decided before a manifest is cloned or parsed, so bytes
+  that failed their integrity check are never interpreted.
+- A failed active-pack pointer reports `storage_activation_failed` and keeps the
+  stored, re-verified pack retrievable instead of claiming a storage failure.
+- The foundation checker matches lockfile specifiers by pattern, so a pnpm
+  indentation or quoting change cannot silently disable the toolchain check.
+- A CI workflow encodes the foundation check, `pnpm verify`, and the Chromium
+  suite across the Node 22 and Node 24 lines.
 
 ## Current verification
 
 ```text
 pnpm verify
 Passed the dependency/media foundation policy, strict type checking, build,
-5/5 foundation tests, and 84/84 Vitest tests: 34 contract, 35 Goal 2
-sync/runtime, 7 Goal 3a adapter/overlay, and 8 Goal 3b storage/import tests.
+5/5 foundation tests, and 85/85 Vitest tests: 34 contract, 35 Goal 2
+sync/runtime, 7 Goal 3a adapter/overlay, and 9 Goal 3b storage/import tests.
 Baseline verification requires 58 project files.
 
 The Playwright suite passes 8/8 across desktop and small-phone Chromium,
 including IndexedDB persistence across reload and invalid-import preservation.
-Checksum-verified Node 22.23.1 passes the complete verification suite. The
-declared minimum is Node 22.13 because pinned pnpm 11.10.0 rejects Node 22.12.
+Checksum-verified Node 22.23.1 passed the complete verification suite when the
+Goal 3b slice landed. Node 24.14.1 passes the complete suite as of the review
+follow-up on 2026-07-28. The declared minimum is Node 22.13 because pinned pnpm
+11.10.0 rejects Node 22.12; the range admits the 22 and 24 LTS lines and
+excludes the unverified, end-of-life Node 23 line.
 
 Workspace control-plane tests
 Passed 12/12. SignBridge resolves through the registry. Workspace doctor reports
@@ -84,8 +95,10 @@ Passed 12/12. SignBridge resolves through the registry. Workspace doctor reports
 task-local warning for the three retained SignBridge worktrees.
 ```
 
-Node 22 is the declared target and is verified locally. A repeatable CI gate
-still needs to encode that toolchain.
+Node 22 and Node 24 are the declared targets. `.github/workflows/verify.yml`
+encodes the foundation check, `pnpm verify`, and the Chromium browser suite
+across both lines. That workflow has never executed: this repository has no Git
+remote, so CI remains unproven until one is configured.
 
 ## Remaining human gates
 
@@ -101,7 +114,9 @@ still needs to encode that toolchain.
    evidence, and identities.
 6. Confirm whether individual entrant status requires any contributor or
    publicity agreement.
-7. Add CI for the verified Node 22/pnpm/Chromium toolchain.
+7. Configure a Git remote so the branch/pull-request rule in `AGENTS.md` is
+   enforceable, the work is backed up off this machine, and the committed CI
+   workflow can actually run.
 
 ## Explicitly not delivered
 
@@ -110,7 +125,8 @@ still needs to encode that toolchain.
   implementation.
 - No real ASL mapping, signer video, source video, participant record, consent
   grant, rights grant, cloud resource, or contest submission.
-- No push, merge, deployment, outreach, or production action.
+- No remote, push, deployment, outreach, or production action. The reviewed
+  branch is fast-forwarded into local `main` only.
 
 The next engineering slice may add quota reporting and explicit user-controlled
 removal for local caption packs. Any active signing path, real-language pack,

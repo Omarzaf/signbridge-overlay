@@ -1,3 +1,11 @@
+# No member under these globs declares a package.json, so they match nothing
+# today. That is deliberate: the root manifest holds the only approved
+# toolchain, workspace-local dependencies stay approval-gated, and the
+# foundation checker fails if a nested manifest appears with its own
+# dependencies. Everything under apps/, packages/, and services/ compiles as one
+# TypeScript project and imports across boundaries through relative source
+# paths. The globs remain so an approved future member is picked up without
+# reopening this decision.
 packages:
   - apps/*
   - packages/*

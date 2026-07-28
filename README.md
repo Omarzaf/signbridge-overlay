@@ -48,6 +48,12 @@ ready for educational or accessibility use.
 10. [packages/pack-storage/README.md](packages/pack-storage/README.md)
 11. [HANDOFF.md](HANDOFF.md)
 
+## Research reports
+
+- [Data and model strategy](docs/data-and-model-strategy.md): required product
+  data, public dataset fit, licensing boundaries, and the version-one
+  no-training recommendation.
+
 ## Surfaces
 
 - `packages/sync-engine`: implemented deterministic, headless video-clock
@@ -60,9 +66,13 @@ ready for educational or accessibility use.
   IndexedDB storage; media caching remains future work.
 - `apps/pwa`: implemented synthetic-only fail-visible shell and local caption
   pack import; active signing remains future work.
-- `apps/extension`: Chrome Manifest V3 adapter.
-- `apps/reviewer`: human review console.
-- `services/authoring`: server-side Gemini authoring support.
+- `apps/extension`: planned Chrome Manifest V3 adapter; not implemented.
+- `apps/reviewer`: planned human review console; not implemented.
+- `services/authoring`: planned server-side Gemini authoring support; not
+  implemented.
+
+Each planned surface currently holds only a `README.md` describing its intended
+boundary.
 
 ## Foundation verification
 
