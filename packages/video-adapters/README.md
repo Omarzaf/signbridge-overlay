@@ -1,16 +1,21 @@
 # Video Adapters
 
-Planned lifecycle adapters for generic HTML5 video and YouTube navigation. Page
-content is untrusted input and adapters may not weaken runtime contracts. No
-video adapter is implemented yet.
+The first dependency-free HTML5 lifecycle adapter is implemented. YouTube
+navigation remains future work. Page content is untrusted input and adapters
+may not weaken runtime contracts.
 
-A future adapter may observe source lifecycle signals such as frame callbacks,
-time updates, play, pause, seeking, seek completion, rate changes, metadata
-changes, and source replacement. Each signal causes a fresh sample of the
-actual source media time, state, rate, and exact source fingerprint.
+`createHtml5VideoAdapter` observes time updates, play, pause, seeking, seek
+completion, rate changes, metadata changes, source replacement, and ended
+signals. Each signal causes a fresh sample of the actual source media time,
+state, rate, and caller-resolved exact source fingerprint.
 
 Adapters must not advance an independent clock, round media time, retain a
 stale fingerprint after navigation, construct a ready playback model, hide
 caption fallback, or infer signing behavior. They pass snapshots to the
 framework-free runtime controller and leave source captions independently
 available.
+
+The fingerprint resolver is called for every sample because an
+`HTMLMediaElement` cannot authenticate the source bytes by itself. An absent or
+hostile fingerprint resolver fails visibly through the runtime rather than
+reusing an earlier value.

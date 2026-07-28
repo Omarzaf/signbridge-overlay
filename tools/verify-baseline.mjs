@@ -50,6 +50,15 @@ const requiredFiles = [
   "packages/runtime/README.md",
   "packages/runtime/src/index.ts",
   "packages/runtime/src/index.test.ts",
+  "packages/video-adapters/README.md",
+  "packages/video-adapters/src/index.ts",
+  "packages/video-adapters/src/index.test.ts",
+  "apps/pwa/index.html",
+  "apps/pwa/src/accessibleFallbackOverlay.ts",
+  "apps/pwa/src/main.ts",
+  "apps/pwa/src/styles.css",
+  "tests/unit/accessibleFallbackOverlay.test.ts",
+  "tests/e2e/pwa-synthetic-fallback.spec.ts",
 ];
 
 const approvedRootDevDependencies = new Map([

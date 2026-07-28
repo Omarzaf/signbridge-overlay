@@ -7,19 +7,21 @@ Current automated coverage has three layers:
 - 34 contract tests cover malformed input, timing, state transitions,
   cross-document references, reviewer finality, signer/consent linkage, release
   scope, rights coverage, and contest-evidence integrity.
-- 34 Goal 2 tests cover prepared-model authenticity, hostile input, immutable
+- 35 Goal 2 tests cover prepared-model authenticity, hostile input, immutable
   state, exact source matching, half-open and fractional timing, gap and asset
   fallbacks, pause/seek/rate recovery, timer-free resolution, subscription
-  order, disposal, and listener isolation.
+  order, reentrant sampling, disposal, and listener isolation.
+- 7 Goal 3a tests cover exact HTML5 clock sampling, source replacement,
+  media-driven frame callbacks, disposal, hostile getters, and accessible
+  fallback presentation.
 
-The current Vitest total is 68/68. Foundation tests run separately through
+The current Vitest total is 76/76. Foundation tests run separately through
 Node's test runner.
 
 Future integration and accessibility suites still need to cover:
 
-- HTML5 and YouTube adapter lifecycle behavior, fullscreen, and source
-  replacement.
-- Overlay rendering against the headless playback states.
+- HTML5 fullscreen and real-media behavior plus YouTube lifecycle behavior.
+- Overlay rendering against a rights-cleared active-sign state.
 - Offline imports, cache behavior, quota, and eviction.
 - Manifest V3 permissions, CSP, and YouTube navigation.
 - Keyboard, touch, focus, reduced-motion, and short-screen behavior.

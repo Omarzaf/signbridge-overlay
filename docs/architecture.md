@@ -26,11 +26,12 @@ them.
 - `packages/signpack-schema`: versioned schema, validator, and migration policy.
 - `packages/signpack-publisher`: the only package permitted to combine approved
   review decisions with licensed assets into an immutable pack.
-- `packages/video-adapters`: future generic HTML5 and YouTube lifecycle
-  adapters.
+- `packages/video-adapters`: implemented HTML5 lifecycle adapter and future
+  YouTube adapter.
 - `packages/pack-storage`: Cache Storage and IndexedDB integration.
 - `packages/event-contracts`: privacy-preserving operational event definitions.
-- `apps/pwa`: local-video, import/export, quota, and offline user experience.
+- `apps/pwa`: implemented synthetic fallback shell and future local-video,
+  import/export, quota, and offline user experience.
 - `apps/extension`: Manifest V3 content integration and narrow permissions.
 - `apps/reviewer`: human review and correction console.
 - `services/authoring`: server-side proposal workflow; it cannot publish.
@@ -51,7 +52,7 @@ dependencies.
 The implemented playback import direction is:
 
 ```text
-signpack-schema -> sync-engine -> runtime -> future adapters and applications
+signpack-schema -> sync-engine -> runtime -> adapters and applications
 ```
 
 Dependencies must never point in the opposite direction.
@@ -91,6 +92,16 @@ retiming have no approved contract yet and therefore fall back visibly.
 
 The controller only stores, publishes, and disposes resolved state. It owns no
 DOM, media element, rendering framework, network request, or cloud service.
+
+The HTML5 adapter reads `currentSrc`, exact media time, pause, seek, and rate on
+every sample. Media lifecycle events and `requestVideoFrameCallback` may trigger
+samples, but the adapter never advances time independently. The fingerprint
+resolver receives the fresh `currentSrc`; an empty, replaced, or hostile source
+cannot reuse an earlier fingerprint.
+
+The Goal 3a PWA shell is intentionally caption-only. It feeds the draft
+synthetic fixture through the same preparation boundary and renders the
+resulting `not_published` state instead of fabricating a ready model.
 
 ## Extension permission contract
 

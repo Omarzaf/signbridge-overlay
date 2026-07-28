@@ -81,10 +81,23 @@ authority.
   source-mismatched, and gap states fall back to captions.
 
 The core has no DOM, media-element ownership, network access, or cloud
-dependency. HTML5 and YouTube adapters, overlay rendering, offline storage, and
-browser/device accessibility evidence remain future work. Synthetic in-memory
-tests do not represent a real language selection, reviewed media, or a
-published product.
+dependency. YouTube adapters, sign-media rendering, offline storage, and
+browser/device accessibility evidence remain future work. Synthetic tests do
+not represent a real language selection, reviewed media, or a published
+product.
+
+## Goal 3a synthetic integration boundary
+
+The first browser slice connects an HTML5 video element to the runtime through a
+dependency-free lifecycle adapter. It samples exact `currentTime`, pause, seek,
+rate, and `currentSrc` state; it re-resolves the source fingerprint every time
+and uses media-driven frame callbacks without an independent timer.
+
+The local PWA shell deliberately loads the draft `zxx`/`ZZ` fixture. Preparation
+blocks it as `not_published`, the accessible overlay exposes that state, and the
+source caption remains independently visible. The shell contains no media,
+signed-language content, fake published manifest, active signing path, network
+request, analytics, service worker, or storage.
 
 ## Privacy and release boundary
 

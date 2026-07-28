@@ -2,9 +2,10 @@
 
 ## Goal
 
-Complete Goal 2: add and independently verify a deterministic, framework-free
-offline playback core using synthetic SignPack data, and stop before DOM
-integration, real signing content, cloud access, or public release.
+Complete Goal 3a: fix reentrant runtime notifications and connect a
+dependency-free HTML5 media-clock adapter to an accessible, synthetic-only
+caption-fallback shell without real signing content, cloud access, or public
+release.
 
 ## Decisions already made
 
@@ -38,6 +39,17 @@ integration, real signing content, cloud access, or public release.
 - A framework-free runtime controller stores and publishes immutable playback
   state without owning a DOM, media element, timer, network request, or cloud
   service.
+- Runtime notifications remain stable when a subscriber samples reentrantly.
+- A dependency-free HTML5 adapter samples exact media time, pause, seek, rate,
+  and current source; it observes lifecycle and media-frame callbacks without
+  advancing an independent clock.
+- The adapter resolves the current source fingerprint on every sample and fails
+  hostile or unknown media state visibly through the runtime.
+- A local PWA shell connects the draft `zxx`/`ZZ` fixture to an accessible
+  overlay that remains blocked as `not_published` while independent captions
+  stay visible.
+- Keyboard controls hide, resize, and reposition the overlay without adding a
+  production dependency or media asset.
 - Forged models, malformed or hostile inputs, source replacement, unsupported
   content, unavailable assets, incompatible segments, and unapproved playback
   rates fail visibly to caption-preserving states.
@@ -50,9 +62,16 @@ integration, real signing content, cloud access, or public release.
 ```text
 pnpm verify
 Passed the dependency/media foundation policy, strict type checking, build,
-5/5 foundation tests, and 68/68 Vitest tests: 34 contract plus 34 Goal 2
-sync/runtime tests. Baseline verification requires 43 project files. Browser
-binaries have not been downloaded.
+5/5 foundation tests, and 76/76 Vitest tests: 34 contract, 35 Goal 2
+sync/runtime, and 7 Goal 3a adapter/overlay tests. Baseline verification
+requires 52 project files.
+
+The PWA production build passes at 21.88 kB JavaScript and 2.85 kB CSS before
+compression. Four Playwright cases are discovered across desktop and small
+phone, but Playwright Chromium has not been downloaded, so the CLI E2E run is
+blocked before page execution. Separate in-app browser inspection passed the
+desktop and 320 px layouts, keyboard controls, explicit `not_published` state,
+caption visibility, zero horizontal overflow, and zero page console errors.
 
 Workspace control-plane tests
 Passed 12/12. SignBridge resolves through the registry. Workspace doctor reports
@@ -81,13 +100,15 @@ toolchain/CI gate.
 
 ## Explicitly not delivered
 
-- No DOM overlay, HTML5 or YouTube adapter, PWA, Chrome extension, reviewer
-  console, Gemini authoring service, or publisher implementation.
+- No sign-media renderer, YouTube adapter, offline pack storage, Chrome
+  extension, reviewer console, Gemini authoring service, or publisher
+  implementation.
 - No real ASL mapping, signer video, source video, participant record, consent
   grant, rights grant, cloud resource, or contest submission.
 - No push, merge, deployment, browser download, outreach, or production action.
 
-A future synthetic-only slice may connect adapters and an accessible overlay to
-the headless core. Any real-language pack, public demo, or accessibility claim
-remains blocked on the reviewer, final language scope, rights-cleared golden
-content, exact-hash grants, and private evidence system.
+The next slice may add offline pack import and verified local storage while
+remaining caption-only. Any active signing path, real-language pack, public
+demo, or accessibility claim remains blocked on the reviewer, final language
+scope, rights-cleared golden content, exact-hash grants, and private evidence
+system.

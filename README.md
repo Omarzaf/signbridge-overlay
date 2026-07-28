@@ -14,20 +14,22 @@ The product will have two independent paths:
 ## Current status
 
 This repository contains the project foundation, approved development
-toolchain, Gate 1 structural contracts, and the Goal 2 headless playback core.
-The contract package validates draft SignPacks, review events, asset ledgers,
-release requests, reproducibility records, and contest-evidence records without
-a production dependency.
+toolchain, Gate 1 structural contracts, the Goal 2 headless playback core, and
+the first Goal 3a synthetic browser integration. The contract package validates
+draft SignPacks, review events, asset ledgers, release requests, reproducibility
+records, and contest-evidence records without a production dependency.
 
 The playback core prepares an immutable local-readiness model, maps exact media
 snapshots to immutable signing or caption-fallback states, and exposes a
-framework-free controller. It contains no DOM rendering, video adapter, media
-element integration, timer, network call, or cloud dependency.
+framework-free controller. A dependency-free HTML5 adapter now samples the
+actual media clock and a local PWA shell renders the draft `zxx`/`ZZ` fixture as
+an explicit `not_published` caption fallback. Neither path uses a timer, network
+call, or cloud dependency.
 
-The repository still does not contain a working viewer, sign-language corpus,
-qualified reviewer approval, or licensed signing asset. Playback tests use
-synthetic, in-memory contract data and no media bytes. Nothing here is ready for
-educational or accessibility use.
+The repository still does not contain a working signing viewer, sign-language
+corpus, qualified reviewer approval, or licensed signing asset. Browser and
+playback tests use synthetic contract data and no media bytes. Nothing here is
+ready for educational or accessibility use.
 
 ## Read order
 
@@ -47,8 +49,11 @@ educational or accessibility use.
 - `packages/sync-engine`: implemented deterministic, headless video-clock
   synchronization.
 - `packages/runtime`: implemented framework-free headless controller; overlay
-  rendering remains future work.
-- `apps/pwa`: offline and small-phone experience.
+  rendering remains an application concern.
+- `packages/video-adapters`: implemented HTML5 lifecycle sampling; YouTube
+  remains future work.
+- `apps/pwa`: implemented synthetic-only fail-visible shell; offline pack and
+  media storage remain future work.
 - `apps/extension`: Chrome Manifest V3 adapter.
 - `apps/reviewer`: human review console.
 - `services/authoring`: server-side Gemini authoring support.

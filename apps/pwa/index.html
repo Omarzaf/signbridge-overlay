@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Synthetic-only SignBridge playback shell with explicit caption fallback."
+    />
+    <title>SignBridge Synthetic Playback Shell</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <main>
+      <header class="page-header">
+        <p class="eyebrow">Goal 3a integration check</p>
+        <h1>SignBridge synthetic playback shell</h1>
+        <p>
+          This local surface proves the HTML5 media-clock connection and
+          fail-visible overlay boundary. It contains no signed-language content
+          or media.
+        </p>
+      </header>
+
+      <section class="test-boundary" aria-labelledby="boundary-heading">
+        <strong id="boundary-heading">SYNTHETIC TEST ONLY</strong>
+        <span>Draft zxx/ZZ fixture · no publication authority</span>
+      </section>
+
+      <section class="player-shell" aria-label="Synthetic playback surface">
+        <video
+          id="source-video"
+          aria-label="Synthetic source video"
+          controls
+          preload="none"
+        ></video>
+        <div id="signing-overlay"></div>
+      </section>
+
+      <section class="source-captions" aria-labelledby="captions-heading">
+        <h2 id="captions-heading">Independent source captions</h2>
+        <p id="source-caption">
+          Synthetic caption fallback; no reviewed sign mapping exists.
+        </p>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
