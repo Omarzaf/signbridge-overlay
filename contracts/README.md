@@ -7,6 +7,7 @@ language and rights gate:
 - `review-event.schema.json`
 - `run-manifest.schema.json`
 - `asset-ledger.schema.json`
+- `contest-evidence.schema.json`
 
 Schemas must keep translation, human review, and asset licensing states
 independent. No placeholder schema should be presented as production-ready.

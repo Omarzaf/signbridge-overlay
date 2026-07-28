@@ -5,12 +5,12 @@
   "description": "A lightweight, human-reviewed sign-language overlay protocol and runtime for online and offline video.",
   "packageManager": "pnpm@11.10.0",
   "engines": {
-    "node": ">=22"
+    "node": "22.x"
   },
   "scripts": {
     "build": "node tools/verify-baseline.mjs",
-    "lint": "node tools/verify-baseline.mjs",
-    "test": "node tools/verify-baseline.mjs",
-    "verify": "node tools/verify-baseline.mjs"
+    "lint": "node --check tools/verify-baseline.mjs && node --check tests/baseline/verify-baseline.test.mjs && node tools/verify-baseline.mjs",
+    "test": "node --test tests/baseline/verify-baseline.test.mjs",
+    "verify": "node tools/verify-baseline.mjs && node --test tests/baseline/verify-baseline.test.mjs"
   }
 }

@@ -1,5 +1,5 @@
 import { readFile, readdir } from "node:fs/promises";
-import { extname, join, relative } from "node:path";
+import { basename, extname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
 
@@ -21,6 +21,16 @@ const requiredFiles = [
   "docs/security.md",
   "docs/claims-ledger.md",
   "contracts/README.md",
+  "packages/signpack-publisher/README.md",
+];
+
+const dependencyFields = [
+  "dependencies",
+  "devDependencies",
+  "optionalDependencies",
+  "peerDependencies",
+  "bundledDependencies",
+  "bundleDependencies",
 ];
 
 const forbiddenTrackedExtensions = new Set([
@@ -64,33 +74,67 @@ for (const file of requiredFiles) {
   }
 }
 
-const packageJson = JSON.parse(
-  await readFile(new URL("package.json", root), "utf8"),
-);
+const files = await collectFiles(rootPath);
+const packageFiles = files.filter((file) => basename(file) === "package.json");
 
-if (packageJson.private !== true) {
-  errors.push("package.json must remain private before the public-release gate");
-}
+for (const packageFile of packageFiles) {
+  const fileName = relative(rootPath, packageFile);
+  let manifest;
 
-if (!String(packageJson.packageManager).startsWith("pnpm@")) {
-  errors.push("package.json must pin pnpm");
-}
+  try {
+    manifest = JSON.parse(await readFile(packageFile, "utf8"));
+  } catch {
+    errors.push(`${fileName} is not valid JSON`);
+    continue;
+  }
 
-for (const dependencyField of ["dependencies", "devDependencies"]) {
-  if (Object.keys(packageJson[dependencyField] ?? {}).length > 0) {
-    errors.push(
-      `${dependencyField} must remain empty until dependency approval`,
-    );
+  for (const dependencyField of dependencyFields) {
+    const value = manifest[dependencyField];
+    const entryCount = Array.isArray(value)
+      ? value.length
+      : Object.keys(value ?? {}).length;
+    if (entryCount > 0) {
+      errors.push(
+        `${fileName} has ${dependencyField} before dependency approval`,
+      );
+    }
   }
 }
 
-const files = await collectFiles(rootPath);
+const rootPackageJson = JSON.parse(
+  await readFile(new URL("package.json", root), "utf8"),
+);
+
+if (rootPackageJson.private !== true) {
+  errors.push("package.json must remain private before the public-release gate");
+}
+
+if (!String(rootPackageJson.packageManager).startsWith("pnpm@")) {
+  errors.push("package.json must pin pnpm");
+}
+
+const lockfile = await readFile(new URL("pnpm-lock.yaml", root), "utf8");
+if (/^(?:packages|snapshots):\s*$/mu.test(lockfile)) {
+  errors.push("pnpm-lock.yaml contains external package records");
+}
+
+if (
+  /^\s{4}(?:dependencies|devDependencies|optionalDependencies|peerDependencies):\s*$/mu.test(
+    lockfile,
+  )
+) {
+  errors.push("pnpm-lock.yaml contains importer dependencies");
+}
+
 for (const file of files) {
   const fileName = relative(rootPath, file);
   if (forbiddenTrackedExtensions.has(extname(file).toLowerCase())) {
     errors.push(`unreviewed media file present: ${fileName}`);
   }
-  if (/^\.env(?:\.|$)/u.test(fileName) && fileName !== ".env.example") {
+  if (
+    /(?:^|[/\\])\.env(?:\.|$)/u.test(fileName) &&
+    !fileName.endsWith(".env.example")
+  ) {
     errors.push(`private environment file present: ${fileName}`);
   }
 }
@@ -103,6 +147,6 @@ if (errors.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(
-    `Baseline verification passed: ${requiredFiles.length} contracts and ${files.length} repository files checked; no dependencies or media present.`,
+    `Baseline verification passed: ${requiredFiles.length} contracts, ${packageFiles.length} package manifest(s), and ${files.length} repository files checked; no dependencies or media present.`,
   );
 }

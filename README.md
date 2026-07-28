@@ -41,6 +41,12 @@ accessibility use.
 The repository currently has no third-party dependencies.
 
 ```bash
+node tools/verify-baseline.mjs
+```
+
+Once the approved Node 22 and pnpm toolchain is available:
+
+```bash
 corepack pnpm verify
 corepack pnpm test
 corepack pnpm build

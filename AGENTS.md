@@ -30,6 +30,10 @@ publish signs.
 ## Native commands
 
 ```bash
+# dependency-free foundation check; does not invoke a package manager
+node tools/verify-baseline.mjs
+
+# approved project toolchain
 corepack pnpm verify
 corepack pnpm lint
 corepack pnpm test
@@ -54,6 +58,9 @@ validator.
 - The viewer must not require Gemini, Firebase, or a network connection.
 - Extension code is bundled locally, requests narrow host permissions, and
   contains no remotely executed code.
+- Initial extension access is limited to YouTube. Generic-site support must use
+  `optional_host_permissions` and an explicit user grant. `<all_urls>` is
+  forbidden.
 - Never log transcript contents, reviewer identities, student identities, or
   private media history.
 - Never send outreach, submit a form, publish a store listing, or deploy to

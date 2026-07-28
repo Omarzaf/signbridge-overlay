@@ -13,7 +13,8 @@ The planned system separates publication from playback:
 
 1. An authoring service accepts timed text and proposes known sign identifiers.
 2. A human reviewer edits or rejects every proposal.
-3. A strict publisher creates a hashed, rights-aware SignPack.
+3. A separate strict publisher combines an approved decision with current
+   licensed-asset evidence and creates a hashed SignPack.
 4. A cloud-independent runtime synchronizes approved signing media to a video.
 5. PWA and Chrome adapters connect that runtime to local files and web video.
 
