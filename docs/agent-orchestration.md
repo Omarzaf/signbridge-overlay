@@ -112,14 +112,25 @@ vendor equally, because it fails the build.
 So: **convert the safety-critical invariants into tests.** Prioritise the ones a
 naive agent is most likely to violate:
 
-| Invariant | Currently | Should be |
-| --- | --- | --- |
-| No production dependency outside `services/authoring` | Prose in `AGENTS.md` | Foundation-checker assertion (execution plan W0.4) |
-| Playback path never imports authoring/reviewer code | Prose in `architecture.md` | Foundation-checker assertion |
-| Synthetic fixtures never use `ase` or a real language code | Prose in `review-protocol.md` | Schema/validator test over `fixtures/` |
-| Extension manifest has no `<all_urls>`, no remote code | Prose in `AGENTS.md` | Release test (execution plan W3.3) |
-| Overlay stays under the 200 KB budget | Prose in `architecture.md` | Build-time size assertion (W2.3) |
-| Signing media is never cropped or mirrored | Prose in `linguistic-safety.md` | Renderer test (W2.1) |
+| Invariant | Prose source | Mechanical enforcement | Status |
+| --- | --- | --- | --- |
+| No production dependency outside `services/authoring`, exactly pinned | `AGENTS.md` | `tools/verify-baseline.mjs` allowlist | ✅ enforced |
+| Playback path imports nothing but relative paths and `node:` builtins | `architecture.md` | `tools/verify-baseline.mjs` import scan | ✅ enforced |
+| Playback never imports `services/` or `apps/reviewer/` | `architecture.md` | `tools/verify-baseline.mjs` import scan | ✅ enforced |
+| Synthetic fixtures never use `ase` or a real language code | `review-protocol.md` | `tools/verify-baseline.mjs` fixture walk | ✅ enforced |
+| Fixtures never claim review, publication, or production status | `review-protocol.md` | `tools/verify-baseline.mjs` fixture walk | ✅ enforced |
+| Extension manifest has no `<all_urls>`, no remote code, YouTube-only hosts | `AGENTS.md` | `tools/verify-baseline.mjs`, fires once the manifest exists | ✅ enforced |
+| Overlay stays under the 200 KB compressed budget | `architecture.md` | Build-step assertion after `build:pwa` | ⬜ pending (W2.3) |
+| Signing media is never cropped or mirrored | `linguistic-safety.md` | Renderer unit test | ⬜ pending (W2.1), needs the renderer to exist |
+
+Each enforced rule has a matching negative test in
+`tests/baseline/verify-baseline.test.mjs` that proves the check actually fails
+when violated. A guard that has only ever been observed passing is not a guard.
+
+The two pending rows cannot be foundation checks: the size budget must run
+*after* the build, and the crop/mirror guarantee needs a renderer that does not
+exist yet. Do not let either be forgotten — they are the two invariants a
+renderer agent is most likely to breach.
 
 Every one of these converted is a rule you no longer have to enforce by reading
 diffs at 2am across four vendors. Do this early — the payoff compounds over the
