@@ -69,6 +69,10 @@ real signing content, cloud access, or public release.
   stored, re-verified pack retrievable instead of claiming a storage failure.
 - The foundation checker matches lockfile specifiers by pattern, so a pnpm
   indentation or quoting change cannot silently disable the toolchain check.
+- Authoring service (`services/authoring/`) built with pinned `@google/genai` dependency, exposing HTTP `POST /propose`, `GET /health`, and `GET /metrics`.
+- Constrained proposal engine restricts sign candidate selections strictly to supplied asset candidate IDs and abstains with `unsupported` and valid reason codes when context/vocabulary cannot be mapped.
+- Generated `proposal_created` review events and run manifests strictly conform to versioned JSON Schemas (`review-event.schema.json` and `run-manifest.schema.json`) with enforced privacy flags (`containsTranscript: false`, `containsIdentity: false`, `containsMediaUrl: false`).
+- AI-Native Operations metrics tracker records false-supported rate, coverage, top-1 acceptance rate, changes requested, rejections, and reason code breakdown.
 - A CI workflow encodes the foundation check, `pnpm verify`, and the Chromium
   suite across the Node 22 and Node 24 lines.
 
@@ -77,22 +81,9 @@ real signing content, cloud access, or public release.
 ```text
 pnpm verify
 Passed the dependency/media foundation policy, strict type checking, build,
-5/5 foundation tests, and 85/85 Vitest tests: 34 contract, 35 Goal 2
-sync/runtime, 7 Goal 3a adapter/overlay, and 9 Goal 3b storage/import tests.
-Baseline verification requires 58 project files.
-
-The Playwright suite passes 8/8 across desktop and small-phone Chromium,
-including IndexedDB persistence across reload and invalid-import preservation.
-Checksum-verified Node 22.23.1 passed the complete verification suite when the
-Goal 3b slice landed. Node 24.14.1 passes the complete suite as of the review
-follow-up on 2026-07-28. The declared minimum is Node 22.13 because pinned pnpm
-11.10.0 rejects Node 22.12; the range admits the 22 and 24 LTS lines and
-excludes the unverified, end-of-life Node 23 line.
-
-Workspace control-plane tests
-Passed 12/12. SignBridge resolves through the registry. Workspace doctor reports
-0 errors and 14 warnings: 13 pre-existing workspace warnings plus one expected
-task-local warning for the three retained SignBridge worktrees.
+18/18 foundation tests, and 94/94 Vitest tests: 34 contract, 35 Goal 2
+sync/runtime, 7 Goal 3a adapter/overlay, 9 Goal 3b storage/import tests, and 9 W4 authoring service tests.
+Baseline verification requires 62 project files.
 ```
 
 Node 22 and Node 24 are the declared targets. `.github/workflows/verify.yml`
@@ -121,8 +112,7 @@ remote, so CI remains unproven until one is configured.
 ## Explicitly not delivered
 
 - No sign-media renderer, YouTube adapter, media cache, Chrome
-  extension, reviewer console, Gemini authoring service, or publisher
-  implementation.
+  extension, reviewer console, or publisher implementation.
 - No real ASL mapping, signer video, source video, participant record, consent
   grant, rights grant, cloud resource, or contest submission.
 - No remote, push, deployment, outreach, or production action. The reviewed
