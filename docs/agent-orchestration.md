@@ -35,7 +35,7 @@ problem solved: **isolation, plus a common definition of done that every vendor
 must satisfy identically.**
 
 There is no single application today that runs Claude Code, Codex, and
-Antigravity in one pane of glass. Do not spend any of your 20 days looking for
+Antigravity in one pane of glass. Do not spend build effort looking for
 one. **The unifying layer is the git repository, not an IDE.**
 
 ### 1.1 What multi-agent actually buys you, and what it costs
@@ -133,8 +133,8 @@ exist yet. Do not let either be forgotten — they are the two invariants a
 renderer agent is most likely to breach.
 
 Every one of these converted is a rule you no longer have to enforce by reading
-diffs at 2am across four vendors. Do this early — the payoff compounds over the
-remaining 20 days.
+diffs at 2am across four vendors. Do this before the agent count grows — every converted rule is one you
+stop enforcing by hand across four vendors.
 
 ---
 
@@ -170,20 +170,20 @@ Notes on the assignment:
   Calibrate against your own experience rather than my assignment; if it
   outperforms on a given task class, move work to it.
 
-### 3.1 Concurrency cap
+### 3.1 Concurrency
 
-**Three concurrent write agents. One review agent. That is the ceiling.**
+**Four write agents, one per owned directory set, plus cross-vendor review.**
 
-Not because more agents cannot run, but because you cannot review more than
-three branches a day and still do the human work in W1 and W9 — the reviewer
-outreach and the revenue motion — which nothing can do for you and which
-determine two of the three judging criteria.
+The real ceiling is not how many agents can run — it is how many green branches
+the owner can meaningfully review before merging. If branches start queueing
+unreviewed, that is the signal to narrow to fewer agents, not to merge faster.
+An unreviewed merge into `main` blocks every agent at once when it breaks.
 
 ---
 
 ## 4. Setup
 
-### 4.1 One-time, today
+### 4.1 One-time setup
 
 ```bash
 node Workspace/scripts/ws.mjs doctor
@@ -296,28 +296,31 @@ to review Claude's publisher; use Claude to review Codex's extension manifest.
 
 ---
 
-## 7. Daily loop
+## 7. The review loop
 
-**Morning (you, 20 minutes):**
+This plan is agent-native: work is paced by slices completing, not by a
+calendar. The owner's role is a **review checkpoint**, entered whenever a branch
+goes green — not a scheduled shift.
+
+**At each checkpoint:**
 
 ```bash
 node Workspace/scripts/ws.mjs doctor
 node Workspace/scripts/ws.mjs status signbridge-overlay --all
 ```
 
-Pick the day's workstreams from `docs/execution-plan.md` §5 critical path. Start
-at most three. Then — before you touch anything technical — spend the first hour
-on W1 and W9: reviewer outreach and revenue. Those are the two criteria no agent
-can move, and they decay if deferred.
+Then, per green branch: read the diff, merge what passes, redirect what does
+not, and update `HANDOFF.md`. Note any invariant an agent tried to violate —
+that is a signal to convert it into a test per §2.1, which is how the same
+mistake stops recurring across every vendor at once.
 
-**During the day (agents):** each agent works its worktree to green verify.
+**Between checkpoints:** each agent works its worktree to green verify and takes
+its next unblocked slice without waiting for permission. An agent blocked on
+another agent's output moves to the next slice in its own workstream rather than
+idling.
 
-**Evening (you):** review each branch, merge what passes, redirect what does not.
-Update `HANDOFF.md`. Note any invariant an agent tried to violate — that is a
-signal to convert it into a test per §2.1.
-
-**Cadence discipline:** no new workstream starts after D18. D19 is buffer and
-submission. The plan freezes on D18 whether or not everything landed.
+**Freeze:** governed by `docs/execution-plan.md` §9, which ties freezing to the
+definition of done rather than to elapsed time.
 
 ---
 
@@ -330,7 +333,7 @@ Artifact Registry, Cloud Storage, and Gemini usage.
 
 Four things to handle:
 
-1. **Verify Gemini API quota on the trial before D3**, not on D18. Trial
+1. **Verify Gemini API quota on the trial before W0.1 ships**, not at submission. Trial
    accounts can carry quota restrictions that only surface under load. The
    public judge-demo route in W0.3 will take unpredictable traffic.
 2. **Set a budget alert now** — the console is already offering it. If credits
@@ -348,7 +351,7 @@ Four things to handle:
 
 | Anti-pattern | Why it fails here |
 | --- | --- |
-| Hunting for an open-source multi-agent orchestrator | Learning cost exceeds the benefit inside 20 days, and `ws.mjs` already does the essential part |
+| Hunting for an open-source multi-agent orchestrator | Learning cost exceeds the benefit, and `ws.mjs` already does the essential part |
 | Running five agents because you have five | Your review capacity caps at ~3 branches/day. The fifth agent makes you slower |
 | Two agents in one worktree | Interleaved edits produce damage that is genuinely hard to unwind |
 | Assigning by task instead of by package | Guarantees merge conflicts. Partition by directory |
@@ -360,7 +363,7 @@ Four things to handle:
 
 ---
 
-## 10. Do this today
+## 10. Start here
 
 1. **[HUMAN]** Reviewer and vendor outreach — execution plan W1.1. Before any of
    the below. It is the only irreversible clock in the project.
