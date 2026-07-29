@@ -72,17 +72,81 @@ real signing content, cloud access, or public release.
 - A CI workflow encodes the foundation check, `pnpm verify`, and the Chromium
   suite across the Node 22 and Node 24 lines.
 
+### W2 — renderer and overlay
+
+- `packages/sign-renderer` is dependency-free and imports only `sync-engine`
+  types. It maps every playback state to readable text, sizes the signing
+  surface, and moves that surface to match one media-clock sample. It runs no
+  clock and cannot reach a manifest, so it cannot promote an unapproved segment.
+- Every one of the fourteen caption-fallback reason codes renders its own
+  explanation. The map is typed `Record<PlaybackFallbackReason, string>`, so a
+  new reason code in the sync engine fails the type check rather than rendering
+  an empty screen.
+- **Crop and mirror are now enforced, not intended** — the second pending
+  invariant in `docs/agent-orchestration.md` §2.1. Three layers:
+  `resolveAssetGeometry` scales by `min(...)` and can only letterbox;
+  `SIGN_SURFACE_STYLE` pins `object-fit: contain` and `transform: none` as the
+  only style written to the surface; and `tools/verify-baseline.mjs` now scans
+  every `.ts`, `.css`, and `.html` file in the playback path for negative
+  scales, out-of-plane rotations, `object-fit: cover`, `preserveAspectRatio`
+  slice, and negative matrix scales.
+- **The 200 KB compressed budget is now a build step** — the first pending §2.1
+  invariant. `tools/assert-bundle-budget.mjs` runs after `build:pwa` and gzips
+  every shipped file. Current payload: 16.04 kB compressed, 8.0% of budget.
+- `tools/generate-synthetic-motion.mjs` emits abstract geometric motion —
+  concentric rings, a sweep bar, counter-rotating squares — labelled
+  `synthetic-test-only` in the filename, the manifest, and on screen. It writes
+  to an ignored directory and refuses to run if `git check-ignore` says the
+  target is not ignored, so it cannot be committed by accident.
+- The motion clip is SVG rather than an encoded video. There is no honest way to
+  encode VP8 or H.264 without a production dependency, and the SVG document
+  timeline is the better fit anyway: `setCurrentTime` and `pauseAnimations` let
+  the source clock drive the clip to the millisecond.
+- The source element plays a silent PCM track built in the browser
+  (`apps/pwa/src/syntheticTimingSource.ts`), attached only when the operator
+  asks for it. This gives the shell a genuine `HTMLMediaElement` clock — which
+  decision 0004 requires — while leaving no media file in the repository or in
+  the shipped bundle.
+- Overlay controls hide, resize, reposition, and dock the signing layer. It
+  docks below the video by default, because a bottom overlay covers exactly
+  where the browser puts the source video's own controls. Below 34rem it docks
+  regardless, which is the explicit alternate layout the accessibility contract
+  asks for when space is insufficient.
+- All controls are 44×44 px or larger, keyboard operable with visible focus, and
+  carry programmatic names, roles, and pressed/expanded state. State is spelled
+  out in text — never colour, icon, or motion alone. Reduced motion holds the
+  clip on a still frame with a control to start it deliberately; forced-colors
+  keeps every border.
+
 ## Current verification
 
 ```text
-pnpm verify
-Passed the dependency/media foundation policy, strict type checking, build,
-5/5 foundation tests, and 85/85 Vitest tests: 34 contract, 35 Goal 2
-sync/runtime, 7 Goal 3a adapter/overlay, and 9 Goal 3b storage/import tests.
-Baseline verification requires 58 project files.
+ws.mjs verify signbridge-overlay --worktree w2-renderer
+All four verification commands pass: the dependency/media foundation policy,
+strict type checking, 18/18 foundation tests, 110/110 Vitest tests, and the
+build including the new bundle-budget assertion.
+
+The 110 Vitest tests are the previous 85 plus 25 renderer tests: 8 geometry,
+6 presentation, 8 timeline, and 3 surface-style. Baseline verification now
+requires 72 project files and additionally scans 27 presentation sources for
+crop and mirror constructs.
+
+The build reports 16.04 kB compressed across 5 files, 8.0% of the 200 kB
+budget.
 
 The Playwright suite passes 8/8 across desktop and small-phone Chromium,
 including IndexedDB persistence across reload and invalid-import preservation.
+
+Browser inspection, desktop Chromium, 1280x900, on 2026-07-28:
+with the timing source loaded and the video playing, the motion surface read
+614 ms against a 617 ms media clock. Seeking the video to 20.6 s moved the
+surface to 2700 ms against an expected 2646 ms, inside the 120 ms hold
+threshold. Pausing the video paused the surface. The surface measured
+273.05 x 153.59 px inside a 273.05 x 153.59 px container at aspect ratio
+1.7777 against the clip's 1.7778, with computed transform `none` and
+object-fit `contain`: fully contained, correct ratio, unmirrored. At 320 px
+there was no horizontal overflow and no control smaller than 44 x 44 px. No
+console errors.
 Checksum-verified Node 22.23.1 passed the complete verification suite when the
 Goal 3b slice landed. Node 24.14.1 passes the complete suite as of the review
 follow-up on 2026-07-28. The declared minimum is Node 22.13 because pinned pnpm
@@ -118,15 +182,45 @@ remote, so CI remains unproven until one is configured.
    enforceable, the work is backed up off this machine, and the committed CI
    workflow can actually run.
 
+## Handed to the coordinator — outside W2's owned paths
+
+Two items belong in `tests/`, which W5 owns and is working in right now. They
+were left alone rather than edited concurrently.
+
+1. **`tests/baseline/verify-baseline.test.mjs` needs a negative test for the new
+   crop/mirror check.** §2.1 is explicit that a guard only ever observed passing
+   is not a guard. The check was proven to fire manually on 2026-07-28 against a
+   scratch copy of the tree, on four separate violations: `transform:
+   scaleX(-1)` in `apps/pwa/src/styles.css`, `object-fit: cover` in the same
+   file, `preserveAspectRatio="xMidYMid slice"` in a file under
+   `apps/extension/`, and a deleted required renderer file. Each failed with the
+   expected message. That evidence is not a committed test, and should become
+   one.
+2. **`tests/e2e/pwa-synthetic-fallback.spec.ts:111` counts same-origin `blob:`
+   URLs as external requests.** It derives "external" from
+   `new URL(request.url()).hostname !== "127.0.0.1"`, and a `blob:` URL has an
+   empty hostname whatever its origin. A blob is in-memory and never touches the
+   network, so this is a false positive, and it will fire again for W8 the
+   moment offline caching hands the player an object URL. W2 worked around it by
+   attaching the timing source on an explicit control rather than at load —
+   better behaviour regardless — so the suite is green today.
+
 ## Explicitly not delivered
 
-- No sign-media renderer, YouTube adapter, media cache, Chrome
-  extension, reviewer console, Gemini authoring service, or publisher
-  implementation.
+- No YouTube adapter, media cache, Chrome extension, reviewer console, Gemini
+  authoring service, or publisher implementation.
+- The renderer's `active_sign` path has never rendered real content, because no
+  reviewed signing media exists. It is covered by unit tests against synthetic
+  states only. What plays in the shell is abstract geometry, labelled as such.
 - No real ASL mapping, signer video, source video, participant record, consent
   grant, rights grant, cloud resource, or contest submission.
 - No remote, push, deployment, outreach, or production action. The reviewed
   branch is fast-forwarded into local `main` only.
+
+With W2 landed, both pending rows in `docs/agent-orchestration.md` §2.1 are now
+mechanically enforced. That table still shows them as pending and needs
+updating; `docs/` is outside W2's owned paths, so it was left for the
+coordinator.
 
 The next engineering slice may add quota reporting and explicit user-controlled
 removal for local caption packs. Any active signing path, real-language pack,
