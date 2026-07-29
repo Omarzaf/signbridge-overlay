@@ -176,6 +176,59 @@ Hard rules:
 
 ---
 
+## Claude — W2, renderer and overlay
+
+```text
+Work in: /Users/omar/Downloads/Claude/.worktrees/signbridge-overlay/w2-renderer
+
+Read first, in order:
+  1. AGENTS.md — the authoritative contract. Follow every invariant.
+  2. docs/execution-plan.md §1 and §6 W2 — your deliverable and done criteria.
+  3. docs/linguistic-safety.md — the crop and mirror prohibition.
+  4. docs/accessibility-acceptance.md — overlay acceptance.
+  5. packages/sync-engine/src/index.ts — the PlaybackState you consume.
+
+You own ONLY: packages/sign-renderer/, apps/pwa/, tools/
+Anything outside those paths: report it, do not change it.
+
+Build W2:
+  W2.1 packages/sign-renderer/, dependency-free, importing only sync-engine
+       types. Consumes PlaybackState and renders the resolved asset over the
+       source video. MUST NEVER crop or mirror — prove it with a test, which
+       closes the second pending invariant in agent-orchestration.md §2.1.
+       Every caption-fallback reason code renders an explicit readable state.
+       Never blank.
+  W2.2 Overlay controls extending apps/pwa/src/accessibleFallbackOverlay.ts:
+       full keyboard operability, programmatic names/roles/states, visible
+       focus, no traps, 44x44px targets, operable at 320px wide and 200% zoom,
+       reduced-motion and high-contrast support, no state by colour alone.
+  W2.3 Build-step size assertion after build:pwa against the 200 KB compressed
+       budget. Closes the first pending §2.1 invariant.
+  W2.4 Synthetic motion generator: a build-time script emitting abstract,
+       obviously non-linguistic motion into dist/, NEVER committed — the
+       foundation check rejects tracked media. Labelled synthetic-test-only in
+       filename, manifest, and on-screen UI.
+
+Done when:
+  node /Users/omar/Downloads/Claude/Workspace/scripts/ws.mjs verify \
+    signbridge-overlay --worktree w2-renderer
+  passes, abstract motion plays in sync uncropped and unmirrored with captions
+  visible, and the UI states plainly that the motion is synthetic and not a
+  signed language. Update HANDOFF.md.
+
+Hard rules:
+  - Do not add a production dependency. The renderer is dependency-free.
+  - The generated motion must be unmistakably non-human. No likeness, no hands,
+    no figure. Abstract geometry only.
+  - Never label generated motion as a signed language anywhere: filename,
+    manifest, UI, alt text, or commit message.
+  - Do not create fixtures using "ase" or any real signed-language code.
+  - Do not weaken or delete a test to go green.
+  - Do not push to main, deploy, or send anything outward.
+```
+
+---
+
 ## Integration
 
 When a branch goes green, the owner reviews the diff and the integrator merges

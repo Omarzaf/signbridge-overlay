@@ -1,5 +1,9 @@
 # Gemini Entry Point
 
+**If `START.md` exists in the repository root, read it first.** It names your
+assignment in this worktree and points at your full brief in
+`docs/agent-briefs.md`. Then continue with the read order below.
+
 `AGENTS.md` is the authoritative agent contract for this repository. Read it in
 full before writing any code.
 
