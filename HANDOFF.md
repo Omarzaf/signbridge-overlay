@@ -2,9 +2,9 @@
 
 ## Goal
 
-Complete Goal 3b: add size-limited, structurally validated, digest-verified
-IndexedDB import and retrieval for synthetic caption-only SignPacks without
-real signing content, cloud access, or public release.
+Complete W3: add a dependency-free YouTube adapter, narrowly permissioned
+Manifest V3 extension, and permission/CSP release tests without real signing
+content, cloud access, or public release.
 
 ## Decisions already made
 
@@ -71,18 +71,38 @@ real signing content, cloud access, or public release.
   indentation or quoting change cannot silently disable the toolchain check.
 - A CI workflow encodes the foundation check, `pnpm verify`, and the Chromium
   suite across the Node 22 and Node 24 lines.
+- A dependency-free YouTube adapter wraps the exact HTML5 media clock and
+  resolves the current source, page URL, and YouTube video ID on every sample.
+- YouTube SPA navigation, source-identity changes, and video-element replacement
+  emit an invalid snapshot before rebinding, without an independent timer.
+- The build-free Manifest V3 extension requires only `www.youtube.com` and
+  `m.youtube.com`; generic HTTP(S) sites remain optional, exact-origin grants.
+- The popup explains optional access before the user initiates Chrome's prompt.
+  Executable code is local and extension-page CSP permits only self-hosted code.
+- The local content overlay preserves captions and states honestly that no
+  reviewed SignPack is loaded.
 
 ## Current verification
 
 ```text
-pnpm verify
+corepack pnpm verify
 Passed the dependency/media foundation policy, strict type checking, build,
-5/5 foundation tests, and 85/85 Vitest tests: 34 contract, 35 Goal 2
-sync/runtime, 7 Goal 3a adapter/overlay, and 9 Goal 3b storage/import tests.
-Baseline verification requires 58 project files.
+18/18 foundation tests, and 92/92 Vitest tests. Baseline verification requires
+62 project files and checked 106 repository files.
 
-The Playwright suite passes 8/8 across desktop and small-phone Chromium,
-including IndexedDB persistence across reload and invalid-import preservation.
+corepack pnpm test:e2e
+Passed 8/8 across desktop and small-phone Chromium, including IndexedDB
+persistence across reload and invalid-import preservation.
+
+Workspace verification
+Passed all 4 required commands for the w3-extension worktree.
+
+Local unpacked-extension smoke test
+Chromium loaded "SignBridge Local Overlay" as enabled with zero runtime
+warnings, and rendered the local popup. No live YouTube navigation occurred.
+
+Committed as e0a380c on codex/w3-extension-20260729.
+
 Checksum-verified Node 22.23.1 passed the complete verification suite when the
 Goal 3b slice landed. Node 24.14.1 passes the complete suite as of the review
 follow-up on 2026-07-28. The declared minimum is Node 22.13 because pinned pnpm
@@ -120,16 +140,15 @@ remote, so CI remains unproven until one is configured.
 
 ## Explicitly not delivered
 
-- No sign-media renderer, YouTube adapter, media cache, Chrome
-  extension, reviewer console, Gemini authoring service, or publisher
-  implementation.
+- No sign-media renderer, media cache, reviewer console, Gemini authoring
+  service, publisher implementation, Chrome Web Store listing, or live
+  YouTube-network validation.
 - No real ASL mapping, signer video, source video, participant record, consent
   grant, rights grant, cloud resource, or contest submission.
-- No remote, push, deployment, outreach, or production action. The reviewed
-  branch is fast-forwarded into local `main` only.
+- No push, merge into local `main`, deployment, outreach, or production action.
 
-The next engineering slice may add quota reporting and explicit user-controlled
-removal for local caption packs. Any active signing path, real-language pack,
-public demo, or accessibility claim remains blocked on the reviewer, final
-language scope, rights-cleared golden content, exact-hash grants, and private
-evidence system.
+The next W3 action is integrator review of `e0a380c`. The future Codex W8 slice
+is sequenced after W2 under `docs/execution-plan.md`. Any active signing path,
+real-language pack, public demo, or accessibility claim remains blocked on
+the reviewer, final language scope, rights-cleared golden content, exact-hash
+grants, and private evidence system.
