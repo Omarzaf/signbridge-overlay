@@ -3,7 +3,9 @@ import {
   AuthoringProposeEngine,
   createAuthoringServer,
   globalMetricsTracker,
+  GeminiProposalClient,
   type ProposeRequest,
+  GeminiApiError,
 } from "../../services/authoring/src/index.js";
 import {
   validateReviewEvent,
@@ -13,8 +15,8 @@ import {
 } from "../../packages/signpack-schema/src/index.js";
 import type { Server } from "node:http";
 
-describe("Authoring Service (Workstream W0.1 / W4)", () => {
-  describe("GeminiProposalClient & ProposeEngine", () => {
+describe("Authoring Service (Workstream W0.1 / W4 Hardening)", () => {
+  describe("GeminiProposalClient & ProposeEngine Invariants", () => {
     it("proposes candidate assets when a candidate matches segment text", async () => {
       const engine = new AuthoringProposeEngine();
       const request: ProposeRequest = {
@@ -53,6 +55,41 @@ describe("Authoring Service (Workstream W0.1 / W4)", () => {
       expect(runManifestValidation.ok).toBe(true);
     });
 
+    it("increments sequence numbers per packId and maintains a stable actorRef", async () => {
+      const engine = new AuthoringProposeEngine();
+      const packId = "spk_test000000000001";
+
+      const req1: ProposeRequest = {
+        segmentText: "Science lesson",
+        startTime: 0,
+        endTime: 2,
+        signedLanguage: "zxx",
+        region: "ZZ",
+        candidates: [{ assetId: "ast_science00000000001", gloss: "SCIENCE" }],
+        packId,
+        environment: "synthetic_test",
+      };
+
+      const req2: ProposeRequest = {
+        segmentText: "Science lab",
+        startTime: 2,
+        endTime: 4,
+        signedLanguage: "zxx",
+        region: "ZZ",
+        candidates: [{ assetId: "ast_science00000000001", gloss: "SCIENCE" }],
+        packId,
+        environment: "synthetic_test",
+      };
+
+      const res1 = await engine.proposeSegment(req1);
+      const res2 = await engine.proposeSegment(req2);
+
+      expect(res1.reviewEvent.sequence).toBe(1);
+      expect(res2.reviewEvent.sequence).toBe(2);
+      expect(res1.reviewEvent.actor.actorRef).toBe(res2.reviewEvent.actor.actorRef);
+      expect(res1.reviewEvent.actor.actorRef).toBe(engine.serviceActorRef);
+    });
+
     it("abstains with 'unsupported' when no candidate asset matches", async () => {
       const engine = new AuthoringProposeEngine();
       const request: ProposeRequest = {
@@ -77,7 +114,6 @@ describe("Authoring Service (Workstream W0.1 / W4)", () => {
       expect(result.assetIds).toEqual([]);
       expect(result.reasonCode).toBe("unsupported_vocabulary");
 
-      // Review event schema verification for unsupported
       const reviewEventValidation = validateReviewEvent(result.reviewEvent as unknown as ReviewEvent);
       expect(reviewEventValidation.ok).toBe(true);
     });
@@ -120,6 +156,35 @@ describe("Authoring Service (Workstream W0.1 / W4)", () => {
       expect(manifest.privacy.containsIdentity).toBe(false);
       expect(manifest.privacy.containsMediaUrl).toBe(false);
     });
+
+    it("generates a failed run manifest when proposal client throws an API error", async () => {
+      const mockClient = new GeminiProposalClient();
+      mockClient.propose = async () => {
+        throw new GeminiApiError("Network timeout connecting to Gemini API");
+      };
+
+      const engine = new AuthoringProposeEngine(mockClient);
+      const request: ProposeRequest = {
+        segmentText: "API test segment",
+        startTime: 0,
+        endTime: 5,
+        signedLanguage: "ase",
+        region: "US",
+        candidates: [],
+        environment: "development",
+      };
+
+      try {
+        await engine.proposeSegment(request);
+        expect.unreachable("Should have thrown GeminiApiError");
+      } catch (err: unknown) {
+        expect(err).toBeInstanceOf(GeminiApiError);
+        const failedManifest = (err as Record<string, unknown>)["failedRunManifest"] as RunManifest;
+        expect(failedManifest).toBeDefined();
+        expect(failedManifest.status).toBe("failed");
+        expect(validateRunManifest(failedManifest).ok).toBe(true);
+      }
+    });
   });
 
   describe("AI-Native Operations Metrics Tracker", () => {
@@ -141,7 +206,7 @@ describe("Authoring Service (Workstream W0.1 / W4)", () => {
     });
   });
 
-  describe("HTTP Server (POST /propose, GET /health, GET /metrics)", () => {
+  describe("HTTP Server Hardening & Endpoints", () => {
     let server: Server;
     let serverUrl: string;
 
@@ -216,6 +281,41 @@ describe("Authoring Service (Workstream W0.1 / W4)", () => {
       });
 
       expect(res.status).toBe(400);
+    });
+
+    it("returns 502 Bad Gateway when Gemini API fails", async () => {
+      const mockClient = new GeminiProposalClient();
+      mockClient.propose = async () => {
+        throw new GeminiApiError("Gemini API connection error");
+      };
+      const engine = new AuthoringProposeEngine(mockClient);
+      const testServer = createAuthoringServer(engine);
+
+      await new Promise<void>((resolve) => testServer.listen(0, "127.0.0.1", resolve));
+      const addr = testServer.address();
+      const url = addr && typeof addr === "object" ? `http://127.0.0.1:${addr.port}` : "";
+
+      const payload: ProposeRequest = {
+        segmentText: "Test segment",
+        startTime: 0,
+        endTime: 3,
+        signedLanguage: "ase",
+        region: "US",
+        candidates: [],
+        environment: "development",
+      };
+
+      const res = await fetch(`${url}/propose`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      expect(res.status).toBe(502);
+      const errorBody = (await res.json()) as { error: string };
+      expect(errorBody.error).toBe("Bad Gateway");
+
+      await new Promise<void>((resolve) => testServer.close(() => resolve()));
     });
   });
 });

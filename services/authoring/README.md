@@ -26,9 +26,18 @@ docker run -p 8080:8080 -e GEMINI_API_KEY="your-api-key" signbridge-authoring:la
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `GEMINI_API_KEY` | *(None / Optional)* | API key for Google Gemini (`@google/genai`). If omitted or in synthetic mode (`zxx`/`ZZ`), fallback deterministic matching runs. |
+| `GEMINI_API_KEY` | *(None / Optional)* | API key for Google Gemini (`@google/genai`). If omitted or in synthetic test mode (`synthetic_test`), fallback deterministic matching runs. |
 | `PORT` | `8080` | Inbound HTTP listening port (required for Google Cloud Run). |
 | `NODE_ENV` | `development` | Runtime environment (`development`, `production`, `synthetic_test`). |
+| `ALLOWED_ORIGIN` | `*` | Allowed origin for CORS headers. |
+
+---
+
+## Operational Notes & Safety Invariants
+
+- **In-Memory Metrics Reset**: Operational metrics served at `GET /metrics` are held in-memory per service instance and reset on container cold restarts.
+- **Pinned Dependencies**: `@google/genai` is deliberately pinned to `0.2.0` in accordance with baseline security requirements.
+- **Server Hardening**: The HTTP server enforces a 1MB payload ceiling (`413 Payload Too Large`), rate limiting at 60 requests/minute per client IP (`429 Too Many Requests`), sanitized error messages, and strictly non-masking API error status codes (`502 Bad Gateway`).
 
 ---
 

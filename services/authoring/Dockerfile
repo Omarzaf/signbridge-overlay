@@ -1,12 +1,12 @@
 # ==========================================
 # Stage 1: Builder
 # ==========================================
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
 # Enable pnpm via Corepack
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@11.10.0 --activate
 
 # Copy package descriptors for dependency caching
 COPY package.json pnpm-lock.yaml* ./
@@ -23,7 +23,7 @@ RUN pnpm --filter ./services/authoring build
 # ==========================================
 # Stage 2: Production Runner
 # ==========================================
-FROM node:20-slim AS runner
+FROM node:22-slim AS runner
 
 WORKDIR /app/authoring
 

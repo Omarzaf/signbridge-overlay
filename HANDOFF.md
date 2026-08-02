@@ -73,6 +73,24 @@ real signing content, cloud access, or public release.
 - Constrained proposal engine restricts sign candidate selections strictly to supplied asset candidate IDs and abstains with `unsupported` and valid reason codes when context/vocabulary cannot be mapped.
 - Generated `proposal_created` review events and run manifests strictly conform to versioned JSON Schemas (`review-event.schema.json` and `run-manifest.schema.json`) with enforced privacy flags (`containsTranscript: false`, `containsIdentity: false`, `containsMediaUrl: false`).
 - AI-Native Operations metrics tracker records false-supported rate, coverage, top-1 acceptance rate, changes requested, rejections, and reason code breakdown.
+- Gemini transport failures raise `GeminiApiError` instead of returning a
+  fabricated `unsupported` result, so an infrastructure fault can never be
+  recorded as a deliberate model abstention.
+- Absent model confidence is treated as `0.0` and rejected as `low_confidence`
+  rather than defaulted to a synthesised `0.9`.
+- A proposal citing any asset identifier outside the supplied candidate list is
+  rejected in full as `unsupported_vocabulary`, rather than silently filtered
+  down to whichever subset happened to be valid.
+- Review events carry a per-pack incrementing `sequence` and a stable service
+  `actorRef`, preserving append-only ordering and consistent authoring-service
+  identity across calls.
+- A failed run attaches a schema-valid `failed` run manifest to the raised
+  error, so an aborted authoring run still leaves reproducible metadata.
+- The authoring server enforces a 1 MB request-body cap and a 60-request-per-
+  minute per-client rate limit, and reads its CORS origin from `ALLOWED_ORIGIN`
+  (still defaulting to `*` until the judge-facing origin is fixed at W0.3).
+- Multi-stage Dockerfile (`services/authoring/Dockerfile`) and container build configuration (`services/authoring/tsconfig.json`) enabling container builds to `dist/` and non-root execution (`USER node`) on port 8080.
+- Complete Google Cloud Run deployment guide and GCP Secret Manager setup documented in `services/authoring/README.md`.
 - A CI workflow encodes the foundation check, `pnpm verify`, and the Chromium
   suite across the Node 22 and Node 24 lines.
 
@@ -81,15 +99,15 @@ real signing content, cloud access, or public release.
 ```text
 pnpm verify
 Passed the dependency/media foundation policy, strict type checking, build,
-18/18 foundation tests, and 94/94 Vitest tests: 34 contract, 35 Goal 2
-sync/runtime, 7 Goal 3a adapter/overlay, 9 Goal 3b storage/import tests, and 9 W4 authoring service tests.
+18/18 foundation tests, and 97/97 Vitest tests: 34 contract, 35 Goal 2
+sync/runtime, 7 Goal 3a adapter/overlay, 9 Goal 3b storage/import tests, and 12 W4 authoring service tests.
 Baseline verification requires 62 project files.
 ```
 
 Node 22 and Node 24 are the declared targets. `.github/workflows/verify.yml`
 encodes the foundation check, `pnpm verify`, and the Chromium browser suite
-across both lines. That workflow has never executed: this repository has no Git
-remote, so CI remains unproven until one is configured.
+across both lines. The Git remote is configured (`github.com/Omarzaf/signbridge-overlay`)
+and CI executes automatically on pull requests and pushes to `main`.
 
 ## Remaining human gates
 
@@ -105,9 +123,7 @@ remote, so CI remains unproven until one is configured.
    evidence, and identities.
 6. Confirm whether individual entrant status requires any contributor or
    publicity agreement.
-7. Configure a Git remote so the branch/pull-request rule in `AGENTS.md` is
-   enforceable, the work is backed up off this machine, and the committed CI
-   workflow can actually run.
+7. [COMPLETED] Git remote configured (`github.com/Omarzaf/signbridge-overlay`), backing up work off-machine and executing CI workflows.
 
 ## Explicitly not delivered
 

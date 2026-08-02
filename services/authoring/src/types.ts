@@ -14,6 +14,16 @@ export interface CandidateAsset {
   region?: string;
 }
 
+export class GeminiApiError extends Error {
+  public readonly cause?: unknown;
+
+  constructor(message: string, cause?: unknown) {
+    super(message);
+    this.name = "GeminiApiError";
+    this.cause = cause;
+  }
+}
+
 export interface ProposeRequest {
   segmentId?: string;
   segmentText: string;
@@ -23,6 +33,7 @@ export interface ProposeRequest {
   region: string;
   candidates: CandidateAsset[];
   packId?: string;
+  sequence?: number;
   contextText?: string;
   environment?: "synthetic_test" | "development" | "production";
 }
