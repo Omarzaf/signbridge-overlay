@@ -109,7 +109,34 @@ encodes the foundation check, `pnpm verify`, and the Chromium browser suite
 across both lines. The Git remote is configured (`github.com/Omarzaf/signbridge-overlay`)
 and CI executes automatically on pull requests and pushes to `main`.
 
+## Deployed state — W0.2 closed, W0.1 partial
+
+Google Cloud project `gemini-hackathon-0802402`, billing linked to the $300
+free-trial account, region `us-central1`.
+
+- Cloud Build builds `services/authoring/Dockerfile` via
+  `services/authoring/cloudbuild.yaml` and pushes to Artifact Registry
+  (`signbridge-repo/authoring-service:latest`).
+- Cloud Run service `authoring-service` is deployed, public and
+  unauthenticated, capped at three instances:
+  `https://authoring-service-37750553255.us-central1.run.app`
+- `GET /health` and `GET /metrics` return 200. `POST /propose` returns a
+  schema-valid `proposal_created` review event and run manifest; its first
+  production call correctly abstained with `unsupported_vocabulary` rather
+  than selecting an unrelated candidate.
+- **No Gemini API key is configured.** The service therefore runs its
+  deterministic fallback engine and issues no model call, so the contest
+  requirement for a live Gemini call in the deployed application is open.
+
 ## Remaining human gates
+
+**Blocking contest eligibility, and only the owner can perform it:** create a
+Gemini API key in `gemini-hackathon-0802402`, store it as the `GEMINI_API_KEY`
+secret, and redeploy with `--set-secrets`. Until then the deployed service makes
+no Gemini call and contest requirement two stays unmet.
+
+The linguistic and rights gates below remain deferred under the Tier 3
+build-only mode described in `docs/execution-plan.md`:
 
 1. Confirm a qualified Deaf ASL reviewer, basis of qualification, authority,
    compensation, conflicts, and consent-safe public identifier.
