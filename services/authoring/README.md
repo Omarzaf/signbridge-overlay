@@ -48,8 +48,12 @@ docker run -p 8080:8080 -e GEMINI_API_KEY="your-api-key" signbridge-authoring:la
 gcloud services enable \
   artifactregistry.googleapis.com \
   run.googleapis.com \
-  secretmanager.googleapis.com
+  secretmanager.googleapis.com \
+  cloudbuild.googleapis.com
 ```
+
+`cloudbuild.googleapis.com` is required by the `gcloud builds submit` step
+below; omitting it makes step 3 fail after the source upload.
 
 ### 2. Create Artifact Registry Repository
 ```bash
@@ -62,7 +66,7 @@ gcloud artifacts repositories create signbridge-repo \
 ### 3. Build & Push Image using Cloud Build
 ```bash
 gcloud builds submit \
-  --tag us-central1-docker.pkg.dev/project-6f0669f1-493e-41bb-9dd/signbridge-repo/authoring-service:latest \
+  --tag us-central1-docker.pkg.dev/gemini-hackathon-0802402/signbridge-repo/authoring-service:latest \
   -f services/authoring/Dockerfile .
 ```
 
@@ -75,7 +79,7 @@ echo -n "YOUR_ACTUAL_GEMINI_API_KEY" | gcloud secrets versions add GEMINI_API_KE
 ### 5. Deploy to Cloud Run
 ```bash
 gcloud run deploy authoring-service \
-  --image=us-central1-docker.pkg.dev/project-6f0669f1-493e-41bb-9dd/signbridge-repo/authoring-service:latest \
+  --image=us-central1-docker.pkg.dev/gemini-hackathon-0802402/signbridge-repo/authoring-service:latest \
   --region=us-central1 \
   --platform=managed \
   --allow-unauthenticated \
