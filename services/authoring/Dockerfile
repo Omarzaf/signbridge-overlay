@@ -5,6 +5,11 @@ FROM node:22-slim AS builder
 
 WORKDIR /app
 
+# pnpm aborts a non-interactive node_modules purge without this. The production
+# prune at the end of this stage changes the installed set and must be able to
+# remove the dev tree without a TTY to confirm against.
+ENV CI=true
+
 # Enable pnpm via Corepack
 RUN corepack enable && corepack prepare pnpm@11.10.0 --activate
 
@@ -14,10 +19,12 @@ RUN corepack enable && corepack prepare pnpm@11.10.0 --activate
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml ./
 COPY services/authoring/package.json ./services/authoring/
 
-# node-linker=hoisted produces a real node_modules tree. pnpm's default
-# symlinked layout points into /app/node_modules/.pnpm and would arrive broken
-# in the runner stage, which copies node_modules out of this one.
-RUN pnpm config set node-linker hoisted
+# A hoisted node_modules is a real directory tree. pnpm's default symlinked
+# layout points into /app/node_modules/.pnpm and would arrive broken in the
+# runner stage, which copies node_modules out of this one. pnpm 11 takes this
+# setting from pnpm-workspace.yaml rather than `pnpm config set`; appending it
+# here keeps the change inside the image instead of altering local development.
+RUN printf '\nnodeLinker: hoisted\n' >> pnpm-workspace.yaml
 
 # Install the full workspace: the build below needs the root-level TypeScript
 # toolchain, which a --filter install of the service alone would omit.
