@@ -1,12 +1,52 @@
 # Fable strategy — coordinated agent plan after the NEEDS_FIXES audit
 
 **Prepared:** 2026-08-02 by Fable 5, read-only strategy coordinator
+**Last updated:** 2026-08-03 — Wave 0 contract workstream delivered
 **Input:** `docs/fable-agent-strategy-handoff.md` (audit at `55bee16`,
 verdict `NEEDS_FIXES`)
-**Status:** plan only. No code changed, no branch merged, no branch deleted.
-Every write-capable task below starts only on the owner's explicit "go".
+**Status:** in progress. One of three Wave 0 workstreams is complete on its
+own branch. Nothing is merged, no branch is deleted, and no deployment has
+changed. Every remaining write-capable task starts only on the owner's "go".
 **Companion:** `docs/agent-briefs.md` carries the paste-ready per-agent briefs
 that implement this strategy.
+
+---
+
+## 0. Status — 2026-08-03
+
+| Workstream | Agent | State | Evidence |
+| --- | --- | --- | --- |
+| C1 contract repair | Claude | **Delivered**, unmerged | `claude/w0-reviewunit-v2-20260802` at `2ae87fb` |
+| A1 authoring boundary | Gemini | Not started — unblocked | branch not yet cut |
+| I1/I2 integration | Codex | Not started — needs base | `integration/wave0-base` not yet cut |
+| R1 reviewer console | Fable | Wave 1, correctly blocked | — |
+| P1 refusal publisher | Claude | Wave 1, correctly blocked | spec written |
+| Vault privacy fixes | Claude | Not started | separate repository |
+| Human-owner lane | Owner | Open | §11 |
+
+**C1 verification, measured on its branch:** foundation baseline passed
+(67 required files, 19 playback sources, 124 tracked files), lint, strict
+typecheck, 20/20 foundation tests, 117/117 Vitest tests, build green at
+9.21 kB gzipped. No browser or deployment claim is made or implied.
+
+**What C1 changed in this plan's assumptions.** Two of the audit's fixtures
+turned out to encode the very defects under repair — a 1000 ms asset paired
+with a 10000 ms segment, and a January evidence period generated before it
+ended — so they were corrected rather than exempted. Widening the foundation
+dependency scan (P2 #3) proved larger than a wording tidy: the playback-source
+count rose from 15 to 19, meaning four files in the dependency-free playback
+path had never been read by the check at all. Treat any earlier "playback
+imports are clean" statement as covering only the 15 files then scanned.
+
+**One thing the owner did not ask for and should know about.** Commit
+`15b95c9`, which carried this plan into the repository, also placed
+`docs/DATASET_ASL.md` under version control. The audit recorded that file as
+user-owned, untracked, and unsafe as operational guidance until each dataset's
+licence, consent, intended task, redistribution rights, and deployment rights
+are verified one by one. It is now tracked on
+`feat/authoring-integrity-hardening` and inherited by every branch cut from it.
+`git rm --cached docs/DATASET_ASL.md` reverses that. No agent has modified the
+file's contents.
 
 ---
 
@@ -118,16 +158,19 @@ node /Users/omar/Downloads/Claude/Workspace/scripts/ws.mjs verify \
 
 Workstream-specific acceptance tests:
 
-**C1 — contracts (Claude).**
-- Adversarial hash probe: two materially different propose requests (same
-  pack, segment, selected output; different source text/timing) MUST produce
-  different ReviewUnitV2 hashes. The audit's reproduction becomes a
-  regression test.
-- Evidence-period regression: a contest-evidence fixture whose period ends
-  after `generatedAt` MUST fail validation
-  (`packages/signpack-schema/src/validator.ts`, audit ref line 2246).
-- Single-asset invariant: a release candidate with two assets for one segment
-  or a duration mismatch MUST fail structural preflight.
+**C1 — contracts (Claude). All gates met on `2ae87fb`.**
+- Adversarial hash probe: eleven single-field variations — timed text, source
+  fingerprint, segment start, segment end, signed language, region, catalog
+  version, candidate set, selected asset, run identity, proposal identity —
+  each change the ReviewUnitV2 hash. Kept permanently in
+  `packages/signpack-schema/src/reviewUnit.test.ts`, alongside key-order
+  independence, hash stability, and refusal to canonicalise an invalid unit.
+- Evidence-period regression: a period ending after `generatedAt` fails with
+  `evidence_period`; a period ending exactly at it passes.
+- Single-asset invariant: two assets for one segment fails with
+  `multi_asset_violation`; a duration mismatch fails with `asset_duration`.
+- Foundation scan: a non-relative import from a `.js`, `.mjs`, or `.tsx` file
+  in the playback path now fails the check, proven per extension.
 
 **A1 — authoring (Gemini).** `curl`-level probes against a locally running
 service, each encoded as a test:
@@ -179,7 +222,8 @@ recoverable states, deletion is verified.
 
 | Branch | State (verified 2026-08-02) | Disposition |
 | --- | --- | --- |
-| `feat/authoring-integrity-hardening` | 8 ahead of `main`; most current line; contains all of Gemini's authoring work | **Wave 0 base** for C1 and A1 |
+| `claude/w0-reviewunit-v2-20260802` | **New 2026-08-03.** C1 delivered at `2ae87fb`; full local gate green | **Merge #1** into `integration/wave0-base`, after Codex's review |
+| `feat/authoring-integrity-hardening` | 8 ahead of `main` at audit; +1 docs commit `15b95c9` since; most current line | **Wave 0 base** for C1 and A1 |
 | `gemini/w0-authoring-20260802` | Ancestor of `feat/authoring-integrity-hardening` | **Superseded**; retire once the new Gemini branch exists |
 | `codex/w2-renderer-20260729` | +2,404 lines vs current tree; renderer + synthetic motion | **Integrate** into `integration/wave0-base`; frozen (no new commits) once the base is cut |
 | `codex/w3-extension-20260729` | +1,070 lines vs current tree; MV3 extension + YouTube adapter | **Integrate** into `integration/wave0-base`; frozen once the base is cut |
@@ -200,8 +244,9 @@ PR status.
 
 ## 6. Merge order and rollback rule
 
-1. `claude/w0-reviewunit-v2-*` → `integration/wave0-base` (contract first;
-   everything downstream consumes it).
+1. `claude/w0-reviewunit-v2-20260802` → `integration/wave0-base` (contract
+   first; everything downstream consumes it). **Ready as of 2026-08-03**,
+   pending the base cut and Codex's independent review.
 2. `gemini/w0-authoring-hardening-*` → same base (adopts the C1 hash).
 3. `codex/w0-integration-*` → same base (its E2E suite must pass against 1+2).
 4. **Wave 0 gate:** on the merged base — `verify-baseline`, `pnpm verify`,
@@ -223,18 +268,29 @@ and re-enters the queue behind whatever exposed it.
 
 ## 7. ReviewUnitV2 — contract decision and owner
 
-**Owner: Claude**, as architect and integrator, in
-`contracts/review-unit.schema.json` (new) with canonical hashing implemented
-in `packages/signpack-schema/`. Gemini and Fable consume; they do not define.
+**Owner: Claude**, as architect and integrator. **Delivered 2026-08-03** in
+`contracts/review-unit.schema.json` and
+`packages/signpack-schema/src/reviewUnit.ts`, recorded as ADR 0005. Gemini and
+Fable consume; they do not define.
 
-The versioned canonical hash MUST bind, at minimum: schema version;
-proposal/run ID; source fingerprint; timed-text hash; exact segment range;
-signed language and region; candidate-catalog version; selected asset hashes
-(at most one asset per segment in v1, exact duration compatibility);
-crop/mirror/transformation state (both required false); and presentation
-metadata. Human approval signs exactly this hash. Any material change
-invalidates the approval. Canonicalisation (field order, encoding, number
-representation) is specified in the schema, not left to implementations.
+The versioned canonical hash binds: schema version; proposal and run ID; pack
+and segment ID; source fingerprint; timed-text hash; exact segment range;
+signed language and region; catalog version and candidate-set hash; selected
+asset hashes (at most one per segment in v1, exact duration equality); and
+presentation state, with `cropped`, `mirrored`, and `transformed` all required
+false. Human approval signs exactly this hash, and any material change
+invalidates it.
+
+Two decisions worth carrying forward. The review unit is versioned `2.0.0`
+**independently of the SignPack schema**, because what approval binds and how
+packs are formatted are different kinds of change. And canonicalisation is
+fixed by the implementation and documented in the ADR — explicit field order,
+base-ten integers, `JSON.stringify` string escaping with no normalisation, and
+absent optional fields emitted as `null` rather than omitted — so "absent" and
+"present but empty" cannot collide. `canonicalizeReviewUnit` validates first
+and throws on an invalid unit rather than returning an authoritative-looking
+hash. Hashing uses WebCrypto, keeping the package dependency-free on both the
+Node targets and the browser.
 
 ---
 
@@ -289,7 +345,8 @@ rights evidence, or silently downgrade unsupported content.
 | Risk | Impact | Owner | Mitigation |
 | --- | --- | --- | --- |
 | W2/W3/authoring do not compose in a real browser | Demo has no visible product | Codex (build), Fable (gate) | Integration runs in Wave 0; E2E is the gate, not a follow-up |
-| ReviewUnitV2 lands late and forces rework | Wave 1 slips | Claude | Contract is merge #1; draft published to other agents before completion |
+| ~~ReviewUnitV2 lands late and forces rework~~ | — | Claude | **Retired 2026-08-03**: contract delivered before either dependent stream began |
+| Delivered-but-unmerged work is mistaken for integrated work | False confidence in status reports | Fable | §0 states branch and commit for every claim; "delivered" never means merged, deployed, or browser-verified |
 | Authoring hardening breaks the deployed Cloud Run judge route | Eligibility evidence regresses | Gemini + owner | No redeploy without owner approval; deployed revision untouched until merged tree is green |
 | An agent fabricates signing media or review evidence under deadline pressure | Worse than not shipping | Every moderator | §12 blocked list; foundation checks; cross-vendor review |
 | Business viability scores near zero | Loses ~⅓ of judging score | **Owner only** | H3 lane starts now; agents must not fabricate evidence |
@@ -301,21 +358,24 @@ rights evidence, or silently downgrade unsupported content.
 
 ## 11. Human decision queue (owner, next 48 hours)
 
-1. **Go/no-go on Wave 0** as tabled in §3, including cutting
-   `integration/wave0-base` and the two new worktrees.
+1. **Cut `integration/wave0-base`** and release Gemini and Codex. C1 is
+   delivered and no longer blocks anyone; the two remaining Wave 0 streams are
+   waiting only on this.
 2. Approve the branch dispositions in §5 (nothing is deleted before this).
-3. Recheck GitHub PR/CI state so the integrator acts on current facts.
-4. Decide the reviewer-appointment path — or confirm the Tier-3 refusal demo
+3. Recheck GitHub PR/CI state so the integrator acts on current facts. Still
+   unverified: no PR, CI, or remote state has been inspected in any session.
+4. Decide the fate of `docs/DATASET_ASL.md`, which is **now tracked** (§0):
+   leave it, remove it from version control, or rewrite it after
+   dataset-by-dataset rights verification. Owner-owned; agents will not touch
+   its contents.
+5. Decide the reviewer-appointment path — or confirm the Tier-3 refusal demo
    as the submitted story (this decides Wave 1 claims).
-5. Start the business-evidence file: funding disclosure (even if zero),
+6. Start the business-evidence file: funding disclosure (even if zero),
    expenses, customer need, marketing route; decide pilot vs. honest
    zero-user statement.
-6. Decide the fate of the untracked `docs/DATASET_ASL.md` (rewrite only after
-   dataset-by-dataset rights verification, or remove). Owner-owned file;
-   agents will not touch it.
 7. Schedule the personal-vault privacy fixes (release-workflow allowlist,
    path-traversal guard) — separate repository, outside every SignBridge
-   agent's scope.
+   agent's scope. Not started.
 
 ## 12. Blocked even if the deadline approaches
 
@@ -368,31 +428,37 @@ verified.
 ## 15. Fix-to-agent assignment matrix
 
 Every audit finding, assigned. Brief item IDs refer to `docs/agent-briefs.md`.
+Status is as of 2026-08-03. "Delivered" means green on its own branch and
+unmerged — never that it is integrated, deployed, or verified in a browser.
 
-| Audit finding | Agent | Wave | Brief item |
-| --- | --- | --- | --- |
-| P1 #1 decision hash under-binds | Claude | 0 | C1.1 (Gemini adopts via A1.7) |
-| P1 #2 malformed requests accepted | Gemini | 0 | A1.1 |
-| P1 #3 caller controls authority | Gemini | 0 | A1.2 |
-| P1 #4 spoofable rate limiting | Gemini | 0 | A1.3 |
-| P1 #5 false model provenance | Gemini | 0 | A1.4 |
-| P1 #6 failed runs disappear | Gemini | 0 | A1.5 |
-| P1 #7 split UTF-8 corruption | Gemini | 0 | A1.6 |
-| P1 #8 multi-asset disagreement | Claude | 0 | C1.2 (Gemini/Codex enforce downstream) |
-| P1 #9 future evidence period | Claude | 0 | C1.3 |
-| P1 #10 host-page DOM safety surface | Codex | 0 | I2.1 |
-| P1 #11 renderer/adapter dead code | Codex | 0 | I1.1, I2.2 |
-| P1 #12 motion not frame-exact | Codex | 0 | I1.2 |
-| P1 #13 reviewer unimplemented | Fable | 1 | R1.1–R1.3 |
-| P1 #13 publisher unimplemented | Claude | 1 | W6 (refusal matrix §9) |
-| P1 #14 vault release workflow | Claude, separate session in `personal-monorepo-template` | owner-scheduled | — |
-| P1 #15 vault path traversal | Claude, same vault session | owner-scheduled | — |
-| P1 #16 DATASET_ASL.md memo | **Owner only** (untracked, user-owned) | — | — |
-| P1 #17 business viability evidence | **Owner only** (human lane H3) | — | — |
-| P2 #1 geometry re-render | Codex | 0 | pre-approved renderer fix |
-| P2 #2 durable permission / primary player | Codex | 0 | I2.2 |
-| P2 #3 verify-baseline scan breadth | Claude | 0 | C1.6 |
-| P2 #4 mutable container tags / SBOM | Gemini | 0 | A1.8 |
-| P2 #5 metrics not durable | Gemini | 0 | A1.9 |
-| P2 #6 PWA file input restore | Codex | 0 | I1.3 |
-| P2 #7 vault workflow perms / identity / venv | Claude, same vault session | owner-scheduled | — |
+| Audit finding | Agent | Wave | Brief item | Status |
+| --- | --- | --- | --- | --- |
+| P1 #1 decision hash under-binds | Claude | 0 | C1.1 | **Delivered**; Gemini still to adopt via A1.7 |
+| P1 #2 malformed requests accepted | Gemini | 0 | A1.1 | Not started |
+| P1 #3 caller controls authority | Gemini | 0 | A1.2 | Not started |
+| P1 #4 spoofable rate limiting | Gemini | 0 | A1.3 | Not started |
+| P1 #5 false model provenance | Gemini | 0 | A1.4 | Not started |
+| P1 #6 failed runs disappear | Gemini | 0 | A1.5 | Not started; ledger interface ready |
+| P1 #7 split UTF-8 corruption | Gemini | 0 | A1.6 | Not started |
+| P1 #8 multi-asset disagreement | Claude | 0 | C1.2 | **Delivered** in contract and preflight; Gemini/Codex still enforce downstream |
+| P1 #9 future evidence period | Claude | 0 | C1.3 | **Delivered** |
+| P1 #10 host-page DOM safety surface | Codex | 0 | I2.1 | Not started |
+| P1 #11 renderer/adapter dead code | Codex | 0 | I1.1, I2.2 | Not started |
+| P1 #12 motion not frame-exact | Codex | 0 | I1.2 | Not started |
+| P1 #13 reviewer unimplemented | Fable | 1 | R1.1–R1.3 | Blocked on Wave 0 gate |
+| P1 #13 publisher unimplemented | Claude | 1 | W6 | Spec delivered (`docs/publisher-refusal-matrix.md`); no code |
+| P1 #14 vault release workflow | Claude, separate session in `personal-monorepo-template` | owner-scheduled | — | Not started |
+| P1 #15 vault path traversal | Claude, same vault session | owner-scheduled | — | Not started |
+| P1 #16 DATASET_ASL.md memo | **Owner only** | — | — | Open, and now tracked in git (§0) |
+| P1 #17 business viability evidence | **Owner only** (human lane H3) | — | — | Open |
+| P2 #1 geometry re-render | Codex | 0 | pre-approved renderer fix | Not started |
+| P2 #2 durable permission / primary player | Codex | 0 | I2.2 | Not started |
+| P2 #3 verify-baseline scan breadth | Claude | 0 | C1.6 | **Delivered**; found 4 previously unscanned playback files |
+| P2 #4 mutable container tags / SBOM | Gemini | 0 | A1.8 | Not started |
+| P2 #5 metrics not durable | Gemini | 0 | A1.9 | Not started |
+| P2 #6 PWA file input restore | Codex | 0 | I1.3 | Not started |
+| P2 #7 vault workflow perms / identity / venv | Claude, same vault session | owner-scheduled | — | Not started |
+
+Also delivered in Wave 0 but not itself an audit finding: the append-only
+run/decision ledger interfaces (C1.4), which A1.5, A1.9, and both Wave 1
+surfaces build on, and ADR 0005 recording the review-unit decision.
