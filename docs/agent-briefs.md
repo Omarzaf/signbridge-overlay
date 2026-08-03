@@ -16,7 +16,7 @@ until the owner approves Wave 0** (strategy §11, decision 1).
 
 | Agent | Worktree | Branch | Base |
 | --- | --- | --- | --- |
-| Claude (architect) | `.worktrees/signbridge-overlay/w0-contracts` (new) | `claude/w0-reviewunit-v2-20260802` | `feat/authoring-integrity-hardening` |
+| Claude (architect) | `.worktrees/signbridge-overlay/w0-contracts` | `claude/w0-reviewunit-v2-20260802` — **DELIVERED 2026-08-03 at `2ae87fb`, unmerged; do not re-run** | `feat/authoring-integrity-hardening` |
 | Gemini / Antigravity | `.worktrees/signbridge-overlay/w0-authoring` | `gemini/w0-authoring-hardening-20260802` (new) | `feat/authoring-integrity-hardening` |
 | Codex | `.worktrees/signbridge-overlay/w0-integration` (new) | `codex/w0-integration-20260802` | `integration/wave0-base` (integrator-cut) |
 | Fable 5 | — read-only this wave — | — | — |
@@ -35,6 +35,11 @@ arbitrates contract questions. Fable writes nothing in Wave 0.
 ---
 
 ## Claude — Wave 0, ReviewUnitV2 and the release contract
+
+**Delivered 2026-08-03 on `claude/w0-reviewunit-v2-20260802` at `2ae87fb`,
+unmerged.** C1.1–C1.6 are all complete; see `HANDOFF.md` and ADR 0005. The
+brief is retained as the record of what was asked for. Gemini's A1.7 adoption
+of the review-unit hash is the remaining dependent task.
 
 ```text
 Work in: /Users/omar/Downloads/Claude/.worktrees/signbridge-overlay/w0-contracts
