@@ -7,6 +7,12 @@ commit-level detail.
 Submission closes **2026-08-17, 13:00 Pacific**. That is 15 days from this
 brief.
 
+Revised later the same day, after reviewing all five open pull requests. The
+first draft said the YouTube adapter and Chrome extension did not exist. That
+was true of `main` and wrong about the project: both are written and waiting in
+PR #3. §3 now separates what is on `main` from what is in an unmerged branch,
+because the difference decides whether a demo is possible this week.
+
 ---
 
 ## 1. What the product is
@@ -62,29 +68,68 @@ For visual proof of synchronisation, the renderer uses **procedurally generated
 abstract motion** — plain geometric shapes, obviously not a person, labelled
 `synthetic-test-only` in the filename, the manifest, and on screen.
 
+Once PR #3 and PR #5 merge, the overlay can attach to a real YouTube video and
+track its clock through seeking, pausing, and SPA navigation. **What appears
+over that video is still abstract geometry, never signing.** If you are asked to
+show the product on a YouTube video, that is the honest demo: the overlay
+attaches, follows the clock exactly, keeps captions visible, and states on
+screen that no reviewed SignPack is loaded. Do not let the presence of a real
+video invite a signing-shaped placeholder over it.
+
 ---
 
 ## 3. What actually exists today
 
-Verified by inspection on 2026-08-02, on `main` unless noted.
+Verified by inspection on 2026-08-02. **Read the middle column carefully** —
+several surfaces exist in an unmerged pull request but not on `main`, and
+checking out `main` alone will make them look absent.
 
-| Surface | State |
-| --- | --- |
-| SignPack contracts, six JSON Schemas + validators | Working, tested |
-| Sync engine and runtime, dependency-free | Working, tested, frozen |
-| HTML5 video adapter | Working, tested |
-| Local caption-pack storage, hashed IndexedDB | Working, tested |
-| PWA playback shell | Working, shows a deliberately blocked state |
-| Authoring service with live Gemini | **Deployed and working** |
-| Sign renderer + abstract motion | In PR #5, not merged |
-| Chrome extension | **Empty directory.** No code |
-| YouTube adapter | **Does not exist.** Only HTML5 |
-| Reviewer console | **Empty directory.** No code |
-| SignPack publisher | **Empty directory.** No code |
-| Any sign media | **None, by design** |
+| Surface | On `main` | In an open PR |
+| --- | --- | --- |
+| SignPack contracts, six JSON Schemas + validators | Working, tested | — |
+| Sync engine and runtime, dependency-free | Working, tested, frozen | — |
+| HTML5 video adapter | Working, tested | — |
+| Local caption-pack storage, hashed IndexedDB | Working, tested | — |
+| PWA playback shell | Working, blocked state by design | — |
+| Authoring service with live Gemini | **Deployed and working** | PR #6 refines |
+| Sign renderer + abstract motion | No | **Yes — PR #5** |
+| YouTube adapter | No, HTML5 only | **Yes — PR #3** |
+| Chrome extension, Manifest V3 | Empty directory | **Yes — PR #3** |
+| Reviewer console | Empty directory | No — unstarted |
+| SignPack publisher | Empty directory | No — unstarted |
+| Any sign media | **None, by design** | **None, by design** |
 
-`apps/extension/`, `apps/reviewer/`, and `packages/signpack-publisher/` contain
-zero TypeScript files. Treat them as unstarted.
+On `main` alone, `apps/extension/`, `apps/reviewer/`, and
+`packages/signpack-publisher/` contain zero TypeScript files. Only the reviewer
+console and the publisher are genuinely unstarted; the extension and adapter are
+written and waiting to merge.
+
+### Pull requests, as of 2026-08-02
+
+All five were conflicting when reviewed. Two turned out to be superseded rather
+than pending, and one of those is actively dangerous to merge.
+
+| PR | Verdict | Reason |
+| --- | --- | --- |
+| #6 authoring, deploy, integrity | **Merge** | Clean, CI green on Node 22 and 24 |
+| #5 renderer + abstract motion | **Merge** | Conflict resolved; merged tree verified |
+| #3 YouTube adapter + extension | **Merge** | Conflict resolved; merged tree verified |
+| #2 signpack contracts | **Close, do not merge** | Zero content `main` lacks. Its `types.ts` is 372 lines against main's 379 — main is a strict superset |
+| #4 gate-one governance | **Close, do not merge** | All six docs are byte-identical to main's, but its `tools/verify-baseline.mjs` is 198 lines against main's 544. Merging would revert the integrity checker |
+
+#3 and #5 conflicted only in `HANDOFF.md`, which the execution plan reserves to
+the integrator precisely because it is the merge-conflict surface. Both branches
+still asserted the repository had no Git remote, so resolving the conflict
+naively would have reverted current truth. Each was resolved by taking main's
+file as the base and re-applying the branch's own contribution, then verifying
+**the merged tree** rather than either side:
+
+- #5 merged with main: 18/18 foundation, 119/119 Vitest across 12 files, bundle
+  16.04 kB compressed, 8.0% of the 200 KB budget.
+- #3 merged with main: 18/18 foundation, 101/101 Vitest.
+
+Merging in the order #6, #5, #3 is expected to require one further `HANDOFF.md`
+resolution per merge, since each lands new content in that same file.
 
 ### The PWA, as it renders today
 
@@ -170,22 +215,35 @@ feature work.
 
 ## 6. What to do next, in order
 
-1. **Merge the five open pull requests.** #2 contracts, #3 extension, #4
-   governance, #5 renderer, #6 deployment and integrity. They are drifting from
-   `main`, and the plan requires integrating per completed slice with `main`
-   always green. Merge smallest first, re-run `pnpm verify` on `main` after each.
+1. **Resolve the five pull requests**, per the verdicts in §3. Close #2 and #4;
+   merge #6, then #5, then #3, re-running `pnpm verify` on `main` after each.
+   This is the largest single risk right now: five branches drifting from `main`
+   is the opposite of the plan's "integrate per completed slice, `main` always
+   green". Merging also lands the renderer, the YouTube adapter, and the
+   extension, which together are most of the visible product.
+
+   ```bash
+   gh pr close 2 --comment "Superseded: main already contains this work."
+   gh pr close 4 --comment "Superseded: main's verify-baseline.mjs is 544 lines to this branch's 198."
+   gh pr merge 6 --merge && gh pr merge 5 --merge && gh pr merge 3 --merge
+   ```
+
 2. **W0.3 — the judge route.** A public page where someone with no account and
    no API key triggers a live proposal and watches it reach the review queue.
-   Rate-limited, never behind a login. This closes an eligibility item.
+   Rate-limited, never behind a login. This closes an eligibility item, and it
+   is the last one that is neither owner-only nor already done.
 3. **W10.4 — funding disclosure.** Required even if the answer is zero. Minutes
    of work, and forgetting it voids everything else.
-4. **W2 — renderer and abstract motion.** The visible product. Must never crop
-   or mirror, proven by test.
-5. **W6 — publisher refusal paths.** The demo's central claim. Prove by test
-   that it refuses on incomplete review, withdrawn asset, hash mismatch,
-   insufficient rights, and above all **absent reviewer** — the live path today.
-6. **W10.2 — demo video.** Under three minutes. State plainly that on-screen
+4. **W6 — publisher refusal paths.** The demo's central claim, and the only
+   major workstream still unstarted. Prove by test that it refuses on incomplete
+   review, withdrawn asset, hash mismatch, insufficient rights, and above all
+   **absent reviewer** — the live path today.
+5. **W10.2 — demo video.** Under three minutes. State plainly that on-screen
    motion is synthetic and not a signed language.
+
+W2, the renderer, is no longer a to-do — it is written and waiting in PR #5.
+The reviewer console (W5) is unstarted and is the one place where a screen
+showing an empty queue is the correct, truthful result.
 
 Business viability scores near zero by choice: all outreach, customers, and
 revenue are deferred. That was a deliberate trade for zero external
