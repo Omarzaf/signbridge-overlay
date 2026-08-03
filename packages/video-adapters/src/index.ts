@@ -33,6 +33,44 @@ export interface Html5VideoAdapter {
   readonly dispose: () => void;
 }
 
+export interface YouTubeSourceDescriptor {
+  readonly currentSrc: string;
+  readonly pageUrl: string;
+  readonly videoId: string | null;
+}
+
+export interface MutationSubscription {
+  readonly disconnect: () => void;
+}
+
+export interface YouTubePage
+  extends Pick<
+    Document,
+    "addEventListener" | "querySelector" | "removeEventListener"
+  > {
+  readonly documentElement: HTMLElement;
+}
+
+export interface YouTubeVideoAdapterOptions {
+  readonly page: YouTubePage;
+  readonly controller: PlaybackStateSampler;
+  readonly resolveSourceFingerprint: (
+    source: YouTubeSourceDescriptor,
+  ) => string | null;
+  readonly getPageUrl?: () => string;
+  readonly navigationTarget?: EventTarget;
+  readonly observeMutations?: (
+    callback: () => void,
+    root: HTMLElement,
+  ) => MutationSubscription;
+}
+
+export interface YouTubeVideoAdapter {
+  readonly sampleNow: () => PlaybackState;
+  readonly start: () => PlaybackState;
+  readonly dispose: () => void;
+}
+
 function invalidSnapshot(): MediaClockSnapshot {
   return {
     sourceFingerprint: "",
@@ -155,6 +193,209 @@ export function createHtml5VideoAdapter({
     }
     cancelFrameCallback();
     started = false;
+  };
+
+  return Object.freeze({
+    sampleNow,
+    start,
+    dispose,
+  });
+}
+
+function defaultPageUrl(): string {
+  try {
+    return globalThis.location.href;
+  } catch {
+    return "";
+  }
+}
+
+function defaultMutationObserver(
+  callback: () => void,
+  root: HTMLElement,
+): MutationSubscription {
+  const observer = new MutationObserver(callback);
+  observer.observe(root, {
+    childList: true,
+    subtree: true,
+  });
+  return observer;
+}
+
+function safePageUrl(getPageUrl: () => string): string {
+  try {
+    const pageUrl = getPageUrl();
+    return typeof pageUrl === "string" ? pageUrl : "";
+  } catch {
+    return "";
+  }
+}
+
+function findYouTubeMedia(page: YouTubePage): HTMLVideoElement | null {
+  try {
+    return page.querySelector("video");
+  } catch {
+    return null;
+  }
+}
+
+export function extractYouTubeVideoId(pageUrl: string): string | null {
+  try {
+    const url = new URL(pageUrl);
+    if (
+      url.protocol !== "https:" ||
+      !/(?:^|\.)youtube\.com$/u.test(url.hostname)
+    ) {
+      return null;
+    }
+
+    if (url.pathname === "/watch") {
+      const videoId = url.searchParams.get("v");
+      return videoId === null || videoId.length === 0 ? null : videoId;
+    }
+
+    const pathMatch =
+      /^\/(?:embed|live|shorts)\/([^/?#]+)/u.exec(url.pathname);
+    return pathMatch?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function createYouTubeVideoAdapter({
+  page,
+  controller,
+  resolveSourceFingerprint,
+  getPageUrl = defaultPageUrl,
+  navigationTarget = globalThis,
+  observeMutations = defaultMutationObserver,
+}: YouTubeVideoAdapterOptions): YouTubeVideoAdapter {
+  let started = false;
+  let disposed = false;
+  let activeMedia: HTMLVideoElement | null = null;
+  let activeAdapter: Html5VideoAdapter | null = null;
+  let mutationSubscription: MutationSubscription | null = null;
+  let lastPageUrl = safePageUrl(getPageUrl);
+  let navigationInvalidated = false;
+  let lastSourceIdentity: string | null = null;
+
+  const invalidate = (): PlaybackState => {
+    activeAdapter?.dispose();
+    activeAdapter = null;
+    activeMedia = null;
+    navigationInvalidated = true;
+    lastSourceIdentity = null;
+    return controller.sample(invalidSnapshot());
+  };
+
+  const bindCurrentMedia = (): PlaybackState => {
+    const media = findYouTubeMedia(page);
+    if (media === null) {
+      return invalidate();
+    }
+
+    if (media !== activeMedia || activeAdapter === null) {
+      activeAdapter?.dispose();
+      activeMedia = media;
+      activeAdapter = createHtml5VideoAdapter({
+        media,
+        controller,
+        resolveSourceFingerprint: (currentSrc) => {
+          const pageUrl = safePageUrl(getPageUrl);
+          const source = {
+            currentSrc,
+            pageUrl,
+            videoId: extractYouTubeVideoId(pageUrl),
+          };
+          const sourceIdentity = JSON.stringify(source);
+          if (
+            lastSourceIdentity !== null &&
+            sourceIdentity !== lastSourceIdentity
+          ) {
+            controller.sample(invalidSnapshot());
+          }
+          lastSourceIdentity = sourceIdentity;
+          return resolveSourceFingerprint(source);
+        },
+      });
+    }
+
+    const state = activeAdapter.start();
+    navigationInvalidated = false;
+    return state;
+  };
+
+  const refreshAfterNavigation = (): PlaybackState => {
+    if (!navigationInvalidated) {
+      invalidate();
+    }
+    lastPageUrl = safePageUrl(getPageUrl);
+    return bindCurrentMedia();
+  };
+
+  const handleNavigationStart = (): void => {
+    invalidate();
+  };
+
+  const handleNavigationFinish = (): void => {
+    refreshAfterNavigation();
+  };
+
+  const handleMutation = (): void => {
+    const pageUrl = safePageUrl(getPageUrl);
+    const media = findYouTubeMedia(page);
+    if (pageUrl !== lastPageUrl || media !== activeMedia) {
+      refreshAfterNavigation();
+    }
+  };
+
+  const sampleNow = (): PlaybackState => {
+    if (disposed) {
+      return controller.sample(invalidSnapshot());
+    }
+    return activeAdapter?.sampleNow() ?? bindCurrentMedia();
+  };
+
+  const start = (): PlaybackState => {
+    if (disposed) {
+      return controller.sample(invalidSnapshot());
+    }
+
+    if (!started) {
+      page.addEventListener("yt-navigate-start", handleNavigationStart);
+      page.addEventListener("yt-navigate-finish", handleNavigationFinish);
+      navigationTarget.addEventListener("popstate", handleNavigationFinish);
+      try {
+        mutationSubscription = observeMutations(
+          handleMutation,
+          page.documentElement,
+        );
+      } catch {
+        mutationSubscription = null;
+      }
+      started = true;
+    }
+
+    lastPageUrl = safePageUrl(getPageUrl);
+    return bindCurrentMedia();
+  };
+
+  const dispose = (): void => {
+    if (disposed) {
+      return;
+    }
+    disposed = true;
+    if (started) {
+      page.removeEventListener("yt-navigate-start", handleNavigationStart);
+      page.removeEventListener("yt-navigate-finish", handleNavigationFinish);
+      navigationTarget.removeEventListener("popstate", handleNavigationFinish);
+      mutationSubscription?.disconnect();
+      mutationSubscription = null;
+      started = false;
+    }
+    activeAdapter?.dispose();
+    activeAdapter = null;
+    activeMedia = null;
   };
 
   return Object.freeze({
