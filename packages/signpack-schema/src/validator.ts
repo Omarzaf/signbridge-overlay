@@ -2243,7 +2243,11 @@ export function validateContestEvidence(
   stringAt(root, "ledgerId", "$", collector, {
     pattern: ID_PATTERNS.evidenceLedger,
   });
-  dateTimeAt(root, "generatedAt", "$", collector);
+  const generatedAt = dateTimeAt(root, "generatedAt", "$", collector);
+  const generatedAtMs =
+    generatedAt === undefined
+      ? undefined
+      : parseCanonicalUtcTimestamp(generatedAt);
 
   const entrant = objectAt(
     root["entrant"],
@@ -2335,6 +2339,25 @@ export function validateContestEvidence(
     const periodStart = dateTimeAt(record, "periodStart", path, collector);
     const periodEnd = dateTimeAt(record, "periodEnd", path, collector);
     checkDateOrder(periodStart, periodEnd, `${path}.periodEnd`, collector);
+
+    // Evidence may not claim a reporting period that had not finished when the
+    // ledger was generated: a period ending after generatedAt reports a future
+    // it cannot have observed.
+    const periodEndMs =
+      periodEnd === undefined
+        ? undefined
+        : parseCanonicalUtcTimestamp(periodEnd);
+    if (
+      periodEndMs !== undefined &&
+      generatedAtMs !== undefined &&
+      periodEndMs > generatedAtMs
+    ) {
+      collector.add(
+        `${path}.periodEnd`,
+        "evidence_period",
+        "must end on or before generatedAt",
+      );
+    }
     const periodMonth = optionalStringAt(
       record,
       "periodMonth",
@@ -2942,6 +2965,37 @@ function validateReleaseCandidateInternal(
   const ledgerAssetsById = new Map(
     assetLedger.assets.map((asset) => [asset.assetId, asset]),
   );
+
+  // v1 release invariant: one segment resolves to at most one asset, and that
+  // asset covers the segment exactly. Authoring, review, publication, and
+  // playback all depend on this agreeing; a pack the runtime would refuse must
+  // never pass release validation.
+  signPack.segments.forEach((segment, index) => {
+    if (segment.assetIds.length > 1) {
+      collector.add(
+        `$.signPack.segments[${index}].assetIds`,
+        "multi_asset_violation",
+        "must reference at most one asset per segment",
+      );
+      return;
+    }
+    const assetId = segment.assetIds[0];
+    if (assetId === undefined) {
+      return;
+    }
+    const asset = packAssetsById.get(assetId);
+    if (asset === undefined) {
+      return;
+    }
+    const segmentDurationMs = segment.endMs - segment.startMs;
+    if (asset.durationMs !== segmentDurationMs) {
+      collector.add(
+        `$.signPack.segments[${index}].assetIds`,
+        "asset_duration",
+        `asset ${assetId} lasts ${asset.durationMs}ms and must equal the ${segmentDurationMs}ms segment`,
+      );
+    }
+  });
   if (ledgerAssetsById.size !== packAssetsById.size) {
     collector.add(
       "$.assetLedger.assets",

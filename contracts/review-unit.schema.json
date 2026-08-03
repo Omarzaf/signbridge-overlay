@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://signbridge.invalid/contracts/review-unit.schema.json",
+  "title": "Review Unit v2",
+  "description": "The complete unit a qualified human reviewer approves. Its canonical hash is what a decision signs. Any material change to any bound field invalidates that approval rather than carrying it forward. Structural validity is not reviewer approval, rights clearance, or evidence that the referenced media exists.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "reviewUnitId",
+    "proposalId",
+    "runId",
+    "packId",
+    "segmentId",
+    "source",
+    "language",
+    "catalog",
+    "selection",
+    "presentation"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "2.0.0",
+      "description": "Versioned independently of the SignPack schema: what approval binds may change separately from the pack format."
+    },
+    "reviewUnitId": { "type": "string", "pattern": "^runit_[a-z0-9]{12,64}$" },
+    "proposalId": {
+      "type": "string",
+      "pattern": "^proposal_[a-z0-9]{12,64}$"
+    },
+    "runId": { "type": "string", "pattern": "^run_[a-z0-9]{12,64}$" },
+    "packId": { "type": "string", "pattern": "^spk_[a-z0-9]{12,64}$" },
+    "segmentId": { "type": "string", "pattern": "^seg_[a-z0-9]{12,64}$" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fingerprint", "timedTextHash", "startMs", "endMs"],
+      "properties": {
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "Exact source media fingerprint. Approval never transfers to a different source."
+        },
+        "timedTextHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "Hash of the exact timed text reviewed. Changing the words changes the unit."
+        },
+        "startMs": { "type": "integer", "minimum": 0, "maximum": 86400000 },
+        "endMs": { "type": "integer", "minimum": 1, "maximum": 86400000 }
+      }
+    },
+    "language": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["signedLanguage", "region"],
+      "properties": {
+        "signedLanguage": {
+          "type": "string",
+          "pattern": "^[a-z]{3}$",
+          "description": "ISO 639-3 signed-language code. Synthetic fixtures use the reserved marker zxx."
+        },
+        "region": {
+          "type": "string",
+          "pattern": "^[A-Z]{2}$",
+          "description": "Region code. Synthetic fixtures use the reserved marker ZZ."
+        }
+      }
+    },
+    "catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["catalogVersion", "candidateSetHash"],
+      "properties": {
+        "catalogVersion": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+        },
+        "candidateSetHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "Hash of the exact candidate set the selection was made from. A different catalog is a different decision."
+        }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["translationStatus", "assetHashes"],
+      "properties": {
+        "translationStatus": {
+          "enum": ["proposed", "mapped", "unsupported"]
+        },
+        "assetHashes": {
+          "type": "array",
+          "maxItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+          "description": "v1 binds at most one asset per segment, by exact media hash. A mapped selection carries exactly one; an unsupported selection carries none."
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{2,63}$",
+          "description": "Required when translationStatus is unsupported."
+        }
+      }
+    },
+    "presentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cropped", "mirrored", "transformed"],
+      "properties": {
+        "cropped": { "const": false },
+        "mirrored": { "const": false },
+        "transformed": { "const": false }
+      },
+      "description": "Approving a clip is not approving a cropped, mirrored, or transformed version of it. All three are false in v1; the fields exist so a future change cannot silently reuse an approval granted under today's rules."
+    }
+  }
+}

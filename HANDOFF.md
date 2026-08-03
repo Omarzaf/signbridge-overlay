@@ -99,10 +99,15 @@ real signing content, cloud access, or public release.
 ```text
 pnpm verify
 Passed the dependency/media foundation policy, strict type checking, build,
-18/18 foundation tests, and 97/97 Vitest tests: 34 contract, 35 Goal 2
-sync/runtime, 7 Goal 3a adapter/overlay, 9 Goal 3b storage/import tests, and 12 W4 authoring service tests.
-Baseline verification requires 62 project files.
+20/20 foundation tests, and 117/117 Vitest tests: 38 contract, 12 review unit,
+4 append-only ledger, 35 Goal 2 sync/runtime, 7 Goal 3a adapter/overlay,
+9 Goal 3b storage/import tests, and 12 W4 authoring service tests.
+Baseline verification requires 67 project files and scans 19 playback sources.
 ```
+
+Measured on `claude/w0-reviewunit-v2-20260802`. The playback-source count rose
+from 15 to 19 because the foundation scan now opens `.tsx`, `.js`, and `.mjs`
+as well as `.ts`; four files in the playback path were previously never read.
 
 Node 22 and Node 24 are the declared targets. `.github/workflows/verify.yml`
 encodes the foundation check, `pnpm verify`, and the Chromium browser suite
@@ -151,6 +156,45 @@ the proof that a model was called. The model abstained with
 
 Contest requirement two — a live Gemini call in the deployed application — is
 therefore **met**.
+
+## Wave 0 contract repair — `claude/w0-reviewunit-v2-20260802`
+
+Closes audit findings P1 #1, #8, #9 and P2 #3 from
+`docs/fable-agent-strategy-handoff.md`. Nothing here is merged.
+
+- **ReviewUnitV2** (`contracts/review-unit.schema.json`,
+  `packages/signpack-schema/src/reviewUnit.ts`). Human approval now binds the
+  source fingerprint, timed-text hash, exact segment range, signed language and
+  region, catalog version and candidate-set hash, selected asset hashes,
+  presentation state, and proposal/run identity. Versioned `2.0.0`,
+  independently of the pack schema. Canonicalisation is fixed by the function
+  and documented in ADR 0005; an invalid unit throws rather than producing an
+  authoritative-looking hash. Hashing uses WebCrypto, so the package stays
+  dependency-free.
+- **The audit's adversarial probe is now a permanent regression test.** Eleven
+  single-field variations must each change the hash. Under the old
+  `decisionHash` they did not.
+- **v1 single-asset invariant.** A segment resolves to at most one asset whose
+  duration equals the segment exactly, enforced in the review unit and in
+  release-candidate preflight (`multi_asset_violation`, `asset_duration`). Two
+  fixtures that embodied the defect were corrected: the release-candidate
+  helper paired a 1000 ms asset with a 10000 ms segment.
+- **Evidence periods** must end on or before `generatedAt`
+  (`evidence_period`). The contest-evidence fixture claimed coverage through
+  31 January while being generated on 1 January; its `generatedAt` moved to
+  1 February so the fixture is truthful.
+- **Append-only ledger interfaces** (`packages/signpack-schema/src/ledger.ts`)
+  for the durable run/decision records the authoring service must write for
+  success, abstention, and failure, with `checkLedgerAppend` centralising the
+  monotonic no-rewrite rule.
+- **Foundation scan widened** to `.tsx`, `.js`, and `.mjs`, with a negative
+  test per extension, and its success message no longer claims more than it
+  checked.
+- `docs/publisher-refusal-matrix.md` specifies the ten refusal paths for the
+  Wave 1 publisher. It is a specification; no publisher code exists.
+
+Still open on this branch: the authoring service continues to emit the old
+`decisionHash`. Adoption of the review-unit hash is Gemini's A1.7.
 
 ## Remaining human gates
 
