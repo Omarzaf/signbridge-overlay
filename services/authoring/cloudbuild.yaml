@@ -1,0 +1,34 @@
+# Cloud Build configuration for the SignBridge authoring service.
+#
+# Why this file exists: `gcloud builds submit --tag` requires a Dockerfile at
+# the root of the uploaded source, and has no flag for pointing at one
+# elsewhere. This service's Dockerfile lives at services/authoring/Dockerfile
+# while its COPY paths are relative to the repository root, so the build
+# context must be the root *and* the Dockerfile path must be given explicitly.
+# Only `docker build --file` expresses that, hence an explicit build step.
+#
+# Usage, from the repository root:
+#   gcloud builds submit --config services/authoring/cloudbuild.yaml .
+#
+# PROJECT_ID is supplied by Cloud Build, so this file pins no project.
+
+substitutions:
+  _REGION: us-central1
+  _REPO: signbridge-repo
+  _IMAGE_NAME: authoring-service
+  _TAG: latest
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    id: build-authoring-image
+    args:
+      - build
+      - --file=services/authoring/Dockerfile
+      - --tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_NAME}:${_TAG}
+      - .
+
+images:
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_NAME}:${_TAG}
+
+options:
+  logging: CLOUD_LOGGING_ONLY

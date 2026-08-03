@@ -1,6 +1,6 @@
 import process from "node:process";
 import { GoogleGenAI, Type } from "@google/genai";
-import type { CandidateAsset, ProposeRequest, ReasonCode } from "./types.js";
+import { GeminiApiError, type CandidateAsset, type ProposeRequest, type ReasonCode } from "./types.js";
 
 export interface GeminiProposalOutput {
   translationStatus: "proposed" | "unsupported";
@@ -12,13 +12,33 @@ export interface GeminiProposalOutput {
 export class GeminiProposalClient {
   private aiClient: GoogleGenAI | null = null;
   private modelName: string;
+  private authMode: "vertex_ai" | "api_key" | "none" = "none";
 
   constructor(apiKey?: string, modelName = "gemini-2.5-flash") {
-    const key = apiKey ?? process.env["GEMINI_API_KEY"];
-    if (key) {
-      this.aiClient = new GoogleGenAI({ apiKey: key });
+    const useVertex = process.env["GOOGLE_GENAI_USE_VERTEXAI"] === "true";
+    const project = process.env["GOOGLE_CLOUD_PROJECT"];
+    const location = process.env["GOOGLE_CLOUD_LOCATION"] ?? "us-central1";
+
+    if (useVertex && project) {
+      // Vertex AI authenticates through Application Default Credentials — on
+      // Cloud Run that is the runtime service account — so no long-lived key is
+      // stored or rotated. It also bills the Google Cloud project, whereas the
+      // Gemini Developer API draws on AI Studio's separate prepaid pool, which
+      // Google Cloud credits cannot fund.
+      this.aiClient = new GoogleGenAI({ vertexai: true, project, location });
+      this.authMode = "vertex_ai";
+    } else {
+      const key = apiKey ?? process.env["GEMINI_API_KEY"];
+      if (key) {
+        this.aiClient = new GoogleGenAI({ apiKey: key });
+        this.authMode = "api_key";
+      }
     }
     this.modelName = modelName;
+  }
+
+  public get credentialMode(): "vertex_ai" | "api_key" | "none" {
+    return this.authMode;
   }
 
   public get isLive(): boolean {
@@ -26,26 +46,18 @@ export class GeminiProposalClient {
   }
 
   public async propose(request: ProposeRequest): Promise<GeminiProposalOutput> {
-    // Synthetic / test environment check or missing API key -> fallback to deterministic heuristic engine
-    if (
-      !this.aiClient ||
-      request.environment === "synthetic_test" ||
-      request.signedLanguage === "zxx" ||
-      request.region === "ZZ"
-    ) {
+    // Synthetic environment check or missing API key -> fallback to deterministic heuristic engine
+    if (!this.aiClient || request.environment === "synthetic_test") {
       return this.proposeDeterministic(request);
     }
 
     try {
       return await this.proposeWithGemini(request);
-    } catch {
-      // On Gemini API error, fallback safely to unsupported to avoid failing the pipeline
-      return {
-        translationStatus: "unsupported",
-        assetIds: [],
-        confidence: 0.0,
-        reasonCode: "low_confidence",
-      };
+    } catch (err: unknown) {
+      if (err instanceof GeminiApiError) {
+        throw err;
+      }
+      throw new GeminiApiError("Gemini API proposal request failed", err);
     }
   }
 
@@ -127,33 +139,56 @@ Valid Reason Codes for unsupported:
     }
 
     const parsed = JSON.parse(responseText) as GeminiProposalOutput;
+    const rawConfidence =
+      typeof parsed.confidence === "number" && !Number.isNaN(parsed.confidence)
+        ? parsed.confidence
+        : 0.0;
 
     // Strict validation: Ensure proposed asset IDs are strictly a subset of candidates
     if (parsed.translationStatus === "proposed") {
-      const validAssets = parsed.assetIds.filter((id) =>
-        candidateIds.includes(id),
+      const containsInvalidAsset = (parsed.assetIds ?? []).some(
+        (id) => !candidateIds.includes(id),
       );
 
-      if (validAssets.length === 0) {
+      if (containsInvalidAsset) {
+        // Hallucination detected: reject the entire proposal
         return {
           translationStatus: "unsupported",
           assetIds: [],
-          confidence: 0,
+          confidence: 0.0,
+          reasonCode: "unsupported_vocabulary",
+        };
+      }
+
+      if (!parsed.assetIds || parsed.assetIds.length === 0) {
+        return {
+          translationStatus: "unsupported",
+          assetIds: [],
+          confidence: 0.0,
           reasonCode: "no_candidate_match",
+        };
+      }
+
+      if (rawConfidence <= 0.0) {
+        return {
+          translationStatus: "unsupported",
+          assetIds: [],
+          confidence: 0.0,
+          reasonCode: "low_confidence",
         };
       }
 
       return {
         translationStatus: "proposed",
-        assetIds: validAssets,
-        confidence: parsed.confidence ?? 0.9,
+        assetIds: parsed.assetIds,
+        confidence: rawConfidence,
       };
     }
 
     return {
       translationStatus: "unsupported",
       assetIds: [],
-      confidence: parsed.confidence ?? 0,
+      confidence: rawConfidence,
       reasonCode: (parsed.reasonCode as ReasonCode) ?? "unsupported_vocabulary",
     };
   }

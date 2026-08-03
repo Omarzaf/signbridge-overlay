@@ -20,9 +20,16 @@ function generatePrefixedId(prefix: string): string {
 
 export class AuthoringProposeEngine {
   private client: GeminiProposalClient;
+  private actorRef: string;
+  private sequenceMap = new Map<string, number>();
 
-  constructor(client?: GeminiProposalClient) {
+  constructor(client?: GeminiProposalClient, actorRef?: string) {
     this.client = client ?? new GeminiProposalClient();
+    this.actorRef = actorRef ?? generatePrefixedId("service");
+  }
+
+  public get serviceActorRef(): string {
+    return this.actorRef;
   }
 
   public async proposeSegment(request: ProposeRequest): Promise<ProposeResult> {
@@ -33,9 +40,57 @@ export class AuthoringProposeEngine {
     const packId = request.packId ?? generatePrefixedId("spk");
     const eventId = generatePrefixedId("rev");
     const runId = generatePrefixedId("run");
-    const actorRef = generatePrefixedId("service");
 
-    const proposalOutput = await this.client.propose(request);
+    const currentSeq = (this.sequenceMap.get(packId) ?? 0) + 1;
+    this.sequenceMap.set(packId, currentSeq);
+    const sequence = request.sequence ?? currentSeq;
+
+    let proposalOutput;
+    try {
+      proposalOutput = await this.client.propose(request);
+    } catch (err: unknown) {
+      const completedAt = new Date().toISOString();
+      const timedTextContent = `${request.segmentText}|${request.startTime}|${request.endTime}`;
+      const timedTextHash = sha256(timedTextContent);
+
+      const failedManifest: RunManifest = {
+        schemaVersion: "1.0.0",
+        runId,
+        environment: env,
+        startedAt,
+        completedAt,
+        status: "failed",
+        tool: {
+          name: "authoring_service",
+          version: "0.1.0",
+        },
+        model: {
+          provider: "google",
+          name: "gemini-2.5-flash",
+          version: "2.5",
+        },
+        input: {
+          timedTextHash,
+          segmentCount: 1,
+          signedLanguage: request.signedLanguage,
+          region: request.region,
+        },
+        output: {
+          proposalLogHash: sha256(JSON.stringify([])),
+          reviewEventIds: [],
+        },
+        privacy: {
+          containsTranscript: false,
+          containsIdentity: false,
+          containsMediaUrl: false,
+        },
+      };
+
+      if (err && typeof err === "object") {
+        (err as Record<string, unknown>)["failedRunManifest"] = failedManifest;
+      }
+      throw err;
+    }
 
     const completedAt = new Date().toISOString();
 
@@ -55,7 +110,7 @@ export class AuthoringProposeEngine {
     const reviewEvent: ReviewEvent = {
       schemaVersion: "1.0.0",
       eventId,
-      sequence: 1,
+      sequence,
       occurredAt: completedAt,
       environment: env,
       packId,
@@ -63,7 +118,7 @@ export class AuthoringProposeEngine {
       decisionHash,
       actor: {
         kind: "authoring_service",
-        actorRef,
+        actorRef: this.actorRef,
       },
       action: "proposal_created",
       translationStatus: proposalOutput.translationStatus,

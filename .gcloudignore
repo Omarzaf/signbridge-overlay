@@ -1,0 +1,34 @@
+# Controls what `gcloud builds submit` uploads as the build context.
+#
+# Written explicitly rather than left to gcloud's implicit .gitignore fallback,
+# so the build context is a reviewed decision. Everything the Docker build
+# needs must survive this list: package.json, pnpm-lock.yaml,
+# pnpm-workspace.yaml, tsconfig.json, and services/authoring/.
+
+.git/
+.gitignore
+.gcloudignore
+
+# Regenerated inside the image; uploading 85 MB of local install would only
+# slow the build and risk poisoning the build context.
+node_modules/
+**/node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+.vite/
+*.log
+
+.DS_Store
+.env
+.env.*
+
+# Private or rights-sensitive local material must never leave the machine.
+private/
+evidence/private/
+media/local/
+fixtures/private/
+
+# Per-worktree agent assignment scaffolding.
+START.md
