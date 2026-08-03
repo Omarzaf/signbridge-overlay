@@ -28,13 +28,18 @@
       </section>
 
       <section class="player-shell" aria-label="Synthetic playback surface">
-        <div class="player-stage">
+        <div class="player-stage" id="player-stage">
           <video
             id="source-video"
             aria-label="Synthetic source video"
             controls
             preload="metadata"
           ></video>
+          <div
+            id="sign-media-surface"
+            class="sign-media-surface"
+            data-content-boundary="synthetic-test-only"
+          ></div>
           <div id="synthetic-motion" class="motion-surface"></div>
         </div>
         <div id="signing-overlay"></div>
@@ -78,6 +83,16 @@
             Hold motion still
           </button>
         </div>
+      </section>
+
+      <section class="integration-trace" aria-labelledby="trace-heading">
+        <p class="eyebrow">Wave 0 local evidence</p>
+        <h2 id="trace-heading">Integration call trace</h2>
+        <p>
+          Module names and outcome codes only. No caption text, media URL, or
+          viewing history is recorded.
+        </p>
+        <ol id="integration-trace" data-call-graph=""></ol>
       </section>
 
       <section class="source-captions" aria-labelledby="captions-heading">

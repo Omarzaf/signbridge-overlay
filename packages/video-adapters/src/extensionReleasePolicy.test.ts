@@ -6,6 +6,8 @@ import manifest from "../../../apps/extension/manifest.json";
 // @ts-expect-error Vite raw imports are intentionally not global TypeScript types.
 import contentSource from "../../../apps/extension/content.js?raw";
 // @ts-expect-error Vite raw imports are intentionally not global TypeScript types.
+import backgroundSource from "../../../apps/extension/background.js?raw";
+// @ts-expect-error Vite raw imports are intentionally not global TypeScript types.
 import popupDocument from "../../../apps/extension/popup.html?raw";
 // @ts-expect-error Vite raw imports are intentionally not global TypeScript types.
 import popupSource from "../../../apps/extension/popup.js?raw";
@@ -27,6 +29,7 @@ describe("extension release policy", () => {
         run_at: "document_idle",
       },
     ]);
+    expect(manifest.background).toEqual({ service_worker: "background.js" });
     expect(JSON.stringify(manifest)).not.toContain("<all_urls>");
   });
 
@@ -60,11 +63,26 @@ describe("extension release policy", () => {
     );
     expect(scriptElements[0]?.groups?.["body"]?.trim()).toBe("");
 
-    for (const source of [popupSource, contentSource]) {
+    for (const source of [popupSource, contentSource, backgroundSource]) {
       expect(source).not.toMatch(
         /\b(?:eval|Function)\s*\(|import\s*\(\s*["']https?:/u,
       );
       expect(source).not.toMatch(/https?:\/\//u);
     }
+  });
+
+  test("keeps status authoritative in browser UI and pack storage in the extension origin", () => {
+    expect(backgroundSource).toContain("setBadgeText");
+    expect(backgroundSource).toContain("signbridge-extension-caption-packs");
+    expect(backgroundSource).toContain("getActiveVerified");
+    expect(contentSource).toContain('attachShadow({ mode: "open" })');
+    expect(contentSource).toContain("createYouTubeVideoAdapter");
+    expect(contentSource).toContain("createRuntimeController");
+    expect(contentSource).toContain("createSignSurface");
+    expect(contentSource).not.toContain("createIndexedDbCaptionPackStore");
+    expect(backgroundSource).toContain("chromeApi.tabs.onUpdated.addListener");
+    expect(backgroundSource).toContain("chromeApi.permissions.contains");
+    expect(backgroundSource).toContain("chromeApi.scripting.executeScript");
+    expect(popupDocument).toContain("Authoritative playback status");
   });
 });

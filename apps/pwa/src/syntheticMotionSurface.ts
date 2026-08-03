@@ -23,6 +23,7 @@ export type MotionSurfaceStatus =
   | "not_generated"
   | "reduced_motion_held"
   | "hidden"
+  | "unapproved_playback_rate"
   | "following_source"
   | "held_with_source";
 
@@ -36,6 +37,7 @@ export interface SourceClockSample {
   readonly currentTimeMs: number;
   readonly paused: boolean;
   readonly seeking: boolean;
+  readonly playbackRate: number;
 }
 
 export interface MotionSurfaceState {
@@ -62,6 +64,12 @@ const STATE_TEXT: Record<MotionSurfaceStatus, MotionSurfaceState> = {
     headline: "The motion surface is hidden.",
     detail: "Nothing is drawn over the video. Restore it with the control below.",
   },
+  unapproved_playback_rate: {
+    status: "unapproved_playback_rate",
+    headline: "Abstract motion is held at this playback rate.",
+    detail:
+      "Only normal-speed synchronisation is approved for this test surface. Source captions remain independently available.",
+  },
   following_source: {
     status: "following_source",
     headline: "Abstract motion is following the source video's clock.",
@@ -81,6 +89,7 @@ export interface SyntheticMotionSurface {
   readonly sync: (sample: SourceClockSample) => MotionSurfaceState;
   readonly setVisible: (visible: boolean) => MotionSurfaceState;
   readonly setMotionAllowed: (allowed: boolean) => MotionSurfaceState;
+  readonly resize: () => void;
   readonly isVisible: () => boolean;
   readonly isMotionAllowed: () => boolean;
   readonly dispose: () => void;
@@ -240,6 +249,11 @@ export function createSyntheticMotionSurface(
       pauseSurface(surface);
       return currentState("reduced_motion_held");
     }
+    if (sample.playbackRate !== 1) {
+      pauseSurface(surface);
+      resize();
+      return currentState("unapproved_playback_rate");
+    }
 
     resize();
     const shouldPlay = !sample.paused && !sample.seeking;
@@ -286,6 +300,7 @@ export function createSyntheticMotionSurface(
     sync,
     setVisible,
     setMotionAllowed,
+    resize,
     isVisible: (): boolean => visible,
     isMotionAllowed: (): boolean => motionAllowed,
     dispose: (): void => {

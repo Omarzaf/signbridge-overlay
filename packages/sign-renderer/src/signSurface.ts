@@ -94,11 +94,22 @@ export function createSignSurface(root: HTMLElement): SignSurface {
   root.append(element);
 
   let mountedAssetId: string | null = null;
+  let lastState: PlaybackState | null = null;
+  let disposed = false;
+
+  const measureRoot = (): ContainerBox => {
+    const bounds = root.getBoundingClientRect();
+    return {
+      widthPx: bounds.width,
+      heightPx: bounds.height,
+    };
+  };
 
   const render = (
     state: PlaybackState,
     container: ContainerBox,
   ): SignSurfaceFrame => {
+    lastState = state;
     const presentation = describeRendererState(state);
 
     if (state.kind !== "active_sign") {
@@ -136,10 +147,35 @@ export function createSignSurface(root: HTMLElement): SignSurface {
     });
   };
 
+  const renderLatestGeometry = (): void => {
+    if (disposed || lastState === null) {
+      return;
+    }
+    render(lastState, measureRoot());
+  };
+
+  // videoWidth/videoHeight are usually zero on the first active render. The
+  // media metadata and container geometry are both asynchronous, so either
+  // becoming available must re-run the exact same non-cropping calculation.
+  element.addEventListener("loadedmetadata", renderLatestGeometry);
+  const view = root.ownerDocument.defaultView;
+  view?.addEventListener("resize", renderLatestGeometry);
+  const ResizeObserverConstructor = view?.ResizeObserver;
+  const resizeObserver =
+    ResizeObserverConstructor === undefined
+      ? null
+      : new ResizeObserverConstructor(renderLatestGeometry);
+  resizeObserver?.observe(root);
+
   return Object.freeze({
     element,
     render,
     dispose: (): void => {
+      disposed = true;
+      element.removeEventListener("loadedmetadata", renderLatestGeometry);
+      view?.removeEventListener("resize", renderLatestGeometry);
+      resizeObserver?.disconnect();
+      lastState = null;
       element.removeAttribute("src");
       element.remove();
     },

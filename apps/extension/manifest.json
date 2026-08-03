@@ -19,6 +19,9 @@
     "default_popup": "popup.html",
     "default_title": "SignBridge site access"
   },
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": [

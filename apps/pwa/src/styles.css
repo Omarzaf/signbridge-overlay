@@ -101,6 +101,12 @@ main {
   margin: 0.75rem;
 }
 
+.sign-media-surface {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 /*
  * Docked by default: docs/accessibility-acceptance.md requires the signing
  * layer not to cover captions or the source video's controls, and a floating
@@ -144,6 +150,28 @@ main {
   border: 1px solid #466387;
   border-radius: 0.85rem;
   background: #0a192b;
+}
+
+.integration-trace {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #466387;
+  border-radius: 0.85rem;
+  background: #0a192b;
+}
+
+.integration-trace h2,
+.integration-trace p {
+  margin-block: 0.35rem;
+}
+
+.integration-trace ol {
+  margin-block: 0.75rem 0;
+  padding-inline-start: 1.4rem;
+  color: #c8d7ec;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
 }
 
 .motion-panel h2 {

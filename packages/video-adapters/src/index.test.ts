@@ -8,6 +8,7 @@ import {
   createHtml5VideoAdapter,
   createYouTubeVideoAdapter,
   extractYouTubeVideoId,
+  selectPrimaryVideo,
   type YouTubePage,
   type YouTubeSourceDescriptor,
 } from "./index";
@@ -295,6 +296,30 @@ describe("createHtml5VideoAdapter", () => {
 });
 
 describe("createYouTubeVideoAdapter", () => {
+  test("selects YouTube's main player instead of the first incidental video", () => {
+    const incidental = createMedia().media;
+    const primary = createMedia().media;
+    Object.defineProperties(incidental, {
+      clientWidth: { configurable: true, value: 160 },
+      clientHeight: { configurable: true, value: 90 },
+    });
+    Object.defineProperties(primary, {
+      clientWidth: { configurable: true, value: 1280 },
+      clientHeight: { configurable: true, value: 720 },
+    });
+    const page = {
+      documentElement: {} as HTMLElement,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      querySelector: vi.fn((selector: string) =>
+        selector.includes("#movie_player") ? primary : incidental,
+      ),
+      querySelectorAll: vi.fn(() => [incidental, primary]),
+    } as unknown as YouTubePage;
+
+    expect(selectPrimaryVideo(page)).toBe(primary);
+  });
+
   test("extracts supported YouTube video identifiers without accepting other hosts", () => {
     expect(
       extractYouTubeVideoId("https://www.youtube.com/watch?v=synthetic-one"),

@@ -49,6 +49,7 @@ export interface YouTubePage
     "addEventListener" | "querySelector" | "removeEventListener"
   > {
   readonly documentElement: HTMLElement;
+  readonly querySelectorAll?: Document["querySelectorAll"];
 }
 
 export interface YouTubeVideoAdapterOptions {
@@ -231,9 +232,61 @@ function safePageUrl(getPageUrl: () => string): string {
   }
 }
 
-function findYouTubeMedia(page: YouTubePage): HTMLVideoElement | null {
+function safeDimension(media: HTMLVideoElement, name: "clientHeight" | "clientWidth" | "videoHeight" | "videoWidth"): number {
   try {
-    return page.querySelector("video");
+    const value = media[name];
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function primaryPlayerScore(
+  media: HTMLVideoElement,
+  preferred: HTMLVideoElement | null,
+): number {
+  const renderedArea =
+    safeDimension(media, "clientWidth") * safeDimension(media, "clientHeight");
+  const intrinsicArea =
+    safeDimension(media, "videoWidth") * safeDimension(media, "videoHeight");
+  let score = Math.max(renderedArea, intrinsicArea);
+  if (media === preferred) {
+    score += Number.MAX_SAFE_INTEGER / 2;
+  }
+  try {
+    if (!media.paused) {
+      score += 1_000_000_000;
+    }
+  } catch {
+    // A hostile page getter cannot take primary-player selection down.
+  }
+  return score;
+}
+
+/** Selects YouTube's main player, falling back to the largest active video. */
+export function selectPrimaryVideo(page: YouTubePage): HTMLVideoElement | null {
+  try {
+    const preferred = page.querySelector<HTMLVideoElement>(
+      "#movie_player video.html5-main-video",
+    );
+    const candidates =
+      page.querySelectorAll === undefined
+        ? []
+        : [...page.querySelectorAll<HTMLVideoElement>("video")];
+    if (candidates.length === 0) {
+      return preferred ?? page.querySelector<HTMLVideoElement>("video");
+    }
+
+    let selected: HTMLVideoElement | null = null;
+    let selectedScore = Number.NEGATIVE_INFINITY;
+    for (const candidate of candidates) {
+      const score = primaryPlayerScore(candidate, preferred);
+      if (score > selectedScore) {
+        selected = candidate;
+        selectedScore = score;
+      }
+    }
+    return selected;
   } catch {
     return null;
   }
@@ -289,7 +342,7 @@ export function createYouTubeVideoAdapter({
   };
 
   const bindCurrentMedia = (): PlaybackState => {
-    const media = findYouTubeMedia(page);
+    const media = selectPrimaryVideo(page);
     if (media === null) {
       return invalidate();
     }
@@ -343,7 +396,7 @@ export function createYouTubeVideoAdapter({
 
   const handleMutation = (): void => {
     const pageUrl = safePageUrl(getPageUrl);
-    const media = findYouTubeMedia(page);
+    const media = selectPrimaryVideo(page);
     if (pageUrl !== lastPageUrl || media !== activeMedia) {
       refreshAfterNavigation();
     }
