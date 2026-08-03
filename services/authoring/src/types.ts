@@ -36,6 +36,7 @@ export interface ProposeRequest {
   sequence?: number;
   contextText?: string;
   environment?: "synthetic_test" | "development" | "production";
+  clientIp?: string;
 }
 
 export interface ReviewEventActor {
@@ -63,12 +64,14 @@ export interface ReviewEvent {
 export interface RunManifestTool {
   name: string;
   version: string;
+  executionMode?: "gemini_live" | "deterministic_fallback" | "synthetic_test";
 }
 
 export interface RunManifestModel {
   provider: "google";
   name: string;
   version: string;
+  authMode?: "vertex_ai" | "api_key" | "none";
 }
 
 export interface RunManifestInput {
@@ -112,6 +115,8 @@ export interface ProposeResult {
   reasonCode?: ReasonCode;
   reviewEvent: ReviewEvent;
   runManifest: RunManifest;
+  durableRunRef: string;
+  executionMode: "gemini_live" | "deterministic_fallback" | "synthetic_test";
 }
 
 export interface AuthoringMetrics {

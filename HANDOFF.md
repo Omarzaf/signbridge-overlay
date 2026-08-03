@@ -116,10 +116,40 @@ signing content, cloud access, or public release.
   integrity failure, a mounted sign surface, primary-player selection, browser
   badge state, Shadow DOM repair, and SPA invalidation. Successful traces are
   retained as local test artifacts.
+- `validateProposeRequest` checks body shape, string and number bounds,
+  candidate uniqueness, identifier formats, language and region codes, and
+  duration limits before any model call, so a malformed request costs nothing
+  and returns 400 (A1.1).
+- The server derives `environment` and generates `segmentId`, `packId`,
+  `eventId`, `runId`, and sequence values itself. A caller cannot inject a
+  catalog, forge a sequence number, or force the production path (A1.2).
+- `BoundedTtlRateLimiter` resolves the client through the rightmost address in
+  the trusted proxy chain, so a prepended `X-Forwarded-For` cannot buy extra
+  quota. The store is bounded and TTL'd against memory growth (A1.3).
+- Provenance records `executionMode`, `authMode`, and the generating tool's own
+  identity. A model that was never called emits no Gemini metadata (A1.4).
+- `DurableRunLedger` appends a record for success, abstention, and failure
+  alike, and the response carries an `X-Run-ID` reference, so a failed run no
+  longer disappears (A1.5).
+- Request bodies are collected as buffers and decoded once through a fatal
+  `TextDecoder`, so a multibyte character split across network chunks does not
+  corrupt the text or its hash. Oversize returns 413; malformed UTF-8 returns
+  400 (A1.6).
+- The authoring `decisionHash` binds schema version 2.0.0, run, segment and
+  pack identity, source text, segment duration, language and region, timed-text
+  hash, candidate catalog hash, translation status, asset IDs, reason code, and
+  confidence, with an adversarial probe proving divergent text or timing
+  produces a different hash (A1.7).
+- The container pins `node:22.14.0-slim` with OCI provenance and SBOM labels,
+  and Cloud Build tags images by immutable `${COMMIT_SHA}` rather than the
+  mutable `latest` (A1.8).
+- `/metrics` is derived from the run ledger's review events, so the numbers
+  survive a process restart (A1.9).
 
 ## Current verification
 
 ```text
+Wave 0 integration, measured on codex/w0-integration-20260802:
 workspace verify: PASS (baseline, lint/typecheck, tests, build)
 Foundation tests: 18/18 passed
 Vitest: 132/132 passed across 13 files
@@ -129,7 +159,19 @@ Headed Chromium: 2/2 Wave 0 integration cases passed
 PWA bundle: 17.17 kB gzip, 8.6% of the 200 kB budget
 Extension bundles: 21.47 kB gzip combined
 Baseline verification requires 72 project files.
+
+A1 authoring hardening, measured on gemini/w0-authoring-hardening-20260802
+before this merge:
+Passed foundation policy, strict typechecking, build, 18/18 foundation tests,
+and 109/109 Vitest tests, including 24 authoring-service hardening tests.
+Baseline verification required 62 project files and scanned 15 playback
+sources on that pre-merge tree.
 ```
+
+The two blocks above were measured on separate branches and do not describe
+one tree. The A1 counts are lower because that branch predates the renderer,
+extension, and integration work; the merged-tree numbers are in this merge's
+commit message.
 
 ## Wave 0 integration review — 2026-08-03
 
