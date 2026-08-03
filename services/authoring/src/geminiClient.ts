@@ -12,13 +12,33 @@ export interface GeminiProposalOutput {
 export class GeminiProposalClient {
   private aiClient: GoogleGenAI | null = null;
   private modelName: string;
+  private authMode: "vertex_ai" | "api_key" | "none" = "none";
 
   constructor(apiKey?: string, modelName = "gemini-2.5-flash") {
-    const key = apiKey ?? process.env["GEMINI_API_KEY"];
-    if (key) {
-      this.aiClient = new GoogleGenAI({ apiKey: key });
+    const useVertex = process.env["GOOGLE_GENAI_USE_VERTEXAI"] === "true";
+    const project = process.env["GOOGLE_CLOUD_PROJECT"];
+    const location = process.env["GOOGLE_CLOUD_LOCATION"] ?? "us-central1";
+
+    if (useVertex && project) {
+      // Vertex AI authenticates through Application Default Credentials — on
+      // Cloud Run that is the runtime service account — so no long-lived key is
+      // stored or rotated. It also bills the Google Cloud project, whereas the
+      // Gemini Developer API draws on AI Studio's separate prepaid pool, which
+      // Google Cloud credits cannot fund.
+      this.aiClient = new GoogleGenAI({ vertexai: true, project, location });
+      this.authMode = "vertex_ai";
+    } else {
+      const key = apiKey ?? process.env["GEMINI_API_KEY"];
+      if (key) {
+        this.aiClient = new GoogleGenAI({ apiKey: key });
+        this.authMode = "api_key";
+      }
     }
     this.modelName = modelName;
+  }
+
+  public get credentialMode(): "vertex_ai" | "api_key" | "none" {
+    return this.authMode;
   }
 
   public get isLive(): boolean {
