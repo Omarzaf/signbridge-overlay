@@ -61,6 +61,16 @@ const requiredFiles = [
   "packages/pack-storage/README.md",
   "packages/pack-storage/src/index.ts",
   "packages/pack-storage/src/index.test.ts",
+  "packages/sign-renderer/README.md",
+  "packages/sign-renderer/src/index.ts",
+  "packages/sign-renderer/src/geometry.ts",
+  "packages/sign-renderer/src/geometry.test.ts",
+  "packages/sign-renderer/src/presentation.ts",
+  "packages/sign-renderer/src/presentation.test.ts",
+  "packages/sign-renderer/src/signSurface.ts",
+  "packages/sign-renderer/src/signSurface.test.ts",
+  "packages/sign-renderer/src/timeline.ts",
+  "packages/sign-renderer/src/timeline.test.ts",
   "apps/pwa/index.html",
   "apps/pwa/src/accessibleFallbackOverlay.ts",
   "apps/pwa/src/captionPackImport.ts",
@@ -127,6 +137,47 @@ const playbackPathPrefixes = [
 const forbiddenPlaybackImportPrefixes = ["services/", "apps/reviewer/"];
 
 const approvedTestSpecifiers = new Set(["vitest", "@playwright/test"]);
+
+/**
+ * Cropping and mirroring, banned by docs/linguistic-safety.md and
+ * docs/accessibility-acceptance.md. A mirrored sign can be a different sign and
+ * a crop can remove the nonmanual grammar that carries the meaning, so these
+ * are correctness failures, not styling choices.
+ *
+ * Scanned across the whole playback path rather than only the renderer: the
+ * damage is identical whether it arrives in the renderer, a page stylesheet, or
+ * the extension's injected CSS, and it is far easier to add in the last two.
+ * Comments are stripped first, so a file may still explain why these are
+ * forbidden.
+ */
+const croppingAndMirroringPatterns = [
+  {
+    pattern: /scale(?:X|3d)?\s*\(\s*-/iu,
+    reason: "a negative scale mirrors the signing surface",
+  },
+  {
+    pattern: /rotate(?:Y|3d)\s*\(/iu,
+    reason: "rotating out of plane mirrors the signing surface",
+  },
+  {
+    pattern: /object-fit\s*:\s*cover/iu,
+    reason: "object-fit: cover crops the signing surface",
+  },
+  {
+    pattern: /objectFit\s*:\s*["'`]cover["'`]/iu,
+    reason: "object-fit: cover crops the signing surface",
+  },
+  {
+    pattern: /preserveAspectRatio\s*=?\s*["'][^"']*slice/iu,
+    reason: "preserveAspectRatio slice crops the signing surface",
+  },
+  {
+    pattern: /transform\s*:\s*[^;\n]*matrix\s*\(\s*-/iu,
+    reason: "a negative matrix scale mirrors the signing surface",
+  },
+];
+
+const croppingAndMirroringExtensions = new Set([".ts", ".css", ".html"]);
 
 /**
  * Reserved non-linguistic markers required by docs/review-protocol.md. A
@@ -423,6 +474,37 @@ for (const file of files) {
   }
 }
 
+// Crop and mirror prohibition. Enforced here rather than trusted to prose,
+// because it is the invariant a renderer agent is most likely to breach while
+// trying to make a video "fit" a container.
+let scannedPresentationSources = 0;
+
+for (const file of files) {
+  const extension = extname(file).toLowerCase();
+  if (!croppingAndMirroringExtensions.has(extension)) {
+    continue;
+  }
+
+  const fileName = toPosix(relative(rootPath, file));
+  if (!playbackPathPrefixes.some((prefix) => fileName.startsWith(prefix))) {
+    continue;
+  }
+
+  scannedPresentationSources += 1;
+  const source = stripComments(await readFile(file, "utf8")).replaceAll(
+    /<!--[\s\S]*?-->/gu,
+    " ",
+  );
+
+  for (const { pattern, reason } of croppingAndMirroringPatterns) {
+    if (pattern.test(source)) {
+      errors.push(
+        `${fileName} matches /${pattern.source}/: ${reason}; signing media is never cropped or mirrored`,
+      );
+    }
+  }
+}
+
 // Synthetic fixtures must remain unmistakably non-linguistic, unreviewed, and
 // unpublished. An agent adding plausible-looking ASL test data is the single
 // most damaging thing that could land in this repository.
@@ -538,6 +620,7 @@ if (errors.length > 0) {
       `${packageFiles.length} package manifest(s), ` +
       `${approvedRootDevDependencies.size} approved development tools, ` +
       `${scannedPlaybackSources} playback sources with no cross-boundary or external imports, ` +
+      `${scannedPresentationSources} presentation sources with no crop or mirror, ` +
       `${fixtureFiles.length} synthetic fixtures with reserved language markers, ` +
       `and ${files.length} repository files checked; no production dependencies or media present.`,
   );

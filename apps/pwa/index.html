@@ -28,13 +28,56 @@
       </section>
 
       <section class="player-shell" aria-label="Synthetic playback surface">
-        <video
-          id="source-video"
-          aria-label="Synthetic source video"
-          controls
-          preload="none"
-        ></video>
+        <div class="player-stage">
+          <video
+            id="source-video"
+            aria-label="Synthetic source video"
+            controls
+            preload="metadata"
+          ></video>
+          <div id="synthetic-motion" class="motion-surface"></div>
+        </div>
         <div id="signing-overlay"></div>
+      </section>
+
+      <section class="motion-panel" aria-labelledby="motion-heading">
+        <div>
+          <p class="eyebrow">Abstract motion test surface</p>
+          <h2 id="motion-heading">
+            Motion clip <code>synthetic-test-only</code>
+          </h2>
+          <p>
+            Generated geometry that follows the source clock, used to check
+            synchronisation, seeking, and pausing. It is not American Sign
+            Language, not any signed language, and depicts no person. Nothing
+            here has been reviewed, and nothing here is a translation.
+          </p>
+          <p>
+            The source element starts empty because this repository contains no
+            media. Loading the timing source attaches a silent track built in
+            your browser, so the video's own play, pause, and seek controls
+            drive a real media clock for the surface to follow.
+          </p>
+        </div>
+        <p id="motion-status" role="status" aria-live="polite" aria-atomic="true">
+          Checking for a generated motion clip.
+        </p>
+        <p id="motion-detail"></p>
+        <div
+          class="motion-panel__controls"
+          role="group"
+          aria-label="Motion surface controls"
+        >
+          <button id="motion-toggle-source" type="button" aria-pressed="false">
+            Load synthetic timing source
+          </button>
+          <button id="motion-toggle-visible" type="button" aria-pressed="true">
+            Hide motion surface
+          </button>
+          <button id="motion-toggle-motion" type="button" aria-pressed="true">
+            Hold motion still
+          </button>
+        </div>
       </section>
 
       <section class="source-captions" aria-labelledby="captions-heading">
