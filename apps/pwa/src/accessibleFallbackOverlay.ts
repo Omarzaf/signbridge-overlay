@@ -1,3 +1,4 @@
+import { describeRendererState } from "../../../packages/sign-renderer/src/index";
 import type { PlaybackState } from "../../../packages/sync-engine/src/index";
 
 export interface OverlayPresentation {
@@ -11,27 +12,18 @@ export interface AccessibleFallbackOverlay {
   readonly dispose: () => void;
 }
 
+/**
+ * The overlay's summary line. Thin adapter over the renderer so the shell and
+ * the renderer cannot drift into describing the same state two different ways.
+ */
 export function describePlaybackState(
   state: PlaybackState,
 ): OverlayPresentation {
-  if (state.kind === "active_sign") {
-    return {
-      statusText:
-        "Signing media rendering is not implemented in this synthetic shell.",
-      fallbackText: state.captionFallback.text,
-      reason: "active_sign",
-    };
-  }
-
+  const presentation = describeRendererState(state);
   return {
-    statusText:
-      state.reason === "not_published"
-        ? "Signing is unavailable for this synthetic draft."
-        : "Signing is unavailable. Source captions remain available.",
-    fallbackText:
-      state.captionFallback?.text ??
-      "Source captions remain independently available.",
-    reason: state.reason,
+    statusText: presentation.summary,
+    fallbackText: presentation.captionText,
+    reason: presentation.reasonCode,
   };
 }
 
@@ -44,12 +36,14 @@ export function createAccessibleFallbackOverlay(
   const label = document.createElement("strong");
   const heading = document.createElement("h2");
   const status = document.createElement("p");
+  const detail = document.createElement("p");
   const fallback = document.createElement("p");
   const reason = document.createElement("code");
   const controls = document.createElement("div");
   const toggleVisibility = document.createElement("button");
   const toggleSize = document.createElement("button");
   const togglePosition = document.createElement("button");
+  const toggleDock = document.createElement("button");
 
   section.className = "signbridge-overlay";
   section.setAttribute("aria-label", "Signing overlay");
@@ -60,6 +54,7 @@ export function createAccessibleFallbackOverlay(
   status.setAttribute("role", "status");
   status.setAttribute("aria-live", "polite");
   status.setAttribute("aria-atomic", "true");
+  detail.className = "signbridge-overlay__detail";
   fallback.className = "signbridge-overlay__fallback";
   reason.className = "signbridge-overlay__reason";
 
@@ -75,10 +70,18 @@ export function createAccessibleFallbackOverlay(
   togglePosition.type = "button";
   togglePosition.textContent = "Move overlay to top";
   togglePosition.setAttribute("aria-pressed", "false");
+  toggleDock.type = "button";
+  // Docked is the default. docs/accessibility-acceptance.md requires the
+  // signing layer not to cover captions or the source video's own controls,
+  // and the browser's controls sit exactly where a bottom overlay would.
+  // Floating it over the video stays available, as an explicit choice.
+  toggleDock.textContent = "Float overlay over video";
+  toggleDock.setAttribute("aria-pressed", "false");
 
-  content.append(label, heading, status, fallback, reason);
-  controls.append(toggleVisibility, toggleSize, togglePosition);
+  content.append(label, heading, status, detail, fallback, reason);
+  controls.append(toggleVisibility, toggleSize, togglePosition, toggleDock);
   section.append(content, controls);
+  root.classList.add("signbridge-overlay-root");
   root.replaceChildren(section);
 
   toggleVisibility.addEventListener("click", () => {
@@ -101,19 +104,32 @@ export function createAccessibleFallbackOverlay(
       : "Move overlay to top";
     togglePosition.setAttribute("aria-pressed", String(isTop));
   });
+  toggleDock.addEventListener("click", () => {
+    const isFloating = root.classList.toggle("signbridge-overlay-root--float");
+    toggleDock.textContent = isFloating
+      ? "Dock overlay below video"
+      : "Float overlay over video";
+    toggleDock.setAttribute("aria-pressed", String(isFloating));
+  });
 
   const render = (state: PlaybackState): void => {
-    const presentation = describePlaybackState(state);
+    const presentation = describeRendererState(state);
     section.dataset["state"] = state.kind;
-    section.dataset["reason"] = presentation.reason;
-    status.textContent = presentation.statusText;
-    fallback.textContent = presentation.fallbackText;
-    reason.textContent = `State: ${presentation.reason}`;
+    section.dataset["reason"] = presentation.reasonCode;
+    section.dataset["surface"] = presentation.surface;
+    status.textContent = presentation.summary;
+    detail.textContent = presentation.detail;
+    fallback.textContent = presentation.captionText;
+    // Spelled out rather than shown as a colour or an icon: the reason code is
+    // what a viewer quotes when reporting that signing did not appear.
+    reason.textContent = `State: ${presentation.reasonCode}`;
   };
 
   return Object.freeze({
     render,
     dispose: (): void => {
+      root.classList.remove("signbridge-overlay-root");
+      root.classList.remove("signbridge-overlay-root--float");
       root.replaceChildren();
     },
   });

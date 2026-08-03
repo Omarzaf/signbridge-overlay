@@ -2,9 +2,10 @@
 
 ## Goal
 
-Complete Goal 3b: add size-limited, structurally validated, digest-verified
-IndexedDB import and retrieval for synthetic caption-only SignPacks without
-real signing content, cloud access, or public release.
+Complete the Codex Wave 0 integration gate: mount the renderer, route PWA
+motion through the media-clock adapter/runtime path, make extension status
+browser-controlled, and prove both applications in Chromium without real
+signing content, cloud access, or public release.
 
 ## Decisions already made
 
@@ -93,16 +94,60 @@ real signing content, cloud access, or public release.
 - Complete Google Cloud Run deployment guide and GCP Secret Manager setup documented in `services/authoring/README.md`.
 - A CI workflow encodes the foundation check, `pnpm verify`, and the Chromium
   suite across the Node 22 and Node 24 lines.
+- The PWA mounts `createSignSurface`; verified local storage, adapter samples,
+  runtime resolution, renderer output, and visible fallback are exercised by
+  the actual application call chain.
+- Abstract synthetic motion has no direct lifecycle or `timeupdate` listener.
+  It is sampled through the adapter/controller path and freezes at unsupported
+  playback rates while captions remain visible.
+- Stored-byte corruption restores as an explicit `corrupt_manifest` state, and
+  an unexpected import failure restores the file input in a `finally` block.
+- Renderer geometry re-runs after sign-media metadata and container resize,
+  retaining the no-crop/no-mirror geometry contract.
+- The extension service worker owns local pack reads and the authoritative
+  action badge. The page overlay is best-effort Shadow DOM with removal repair.
+- The extension content bundle connects primary-player selection, the YouTube
+  adapter, runtime, and renderer. SPA navigation emits a visible invalidation
+  before rebinding.
+- Generic-site permissions remain exact-origin and optional; approved grants
+  are reused by the service worker across reload and navigation. Required host
+  access remains limited to YouTube and `<all_urls>` is absent.
+- Passing Playwright coverage now includes seek/pause/rate behavior, storage
+  integrity failure, a mounted sign surface, primary-player selection, browser
+  badge state, Shadow DOM repair, and SPA invalidation. Successful traces are
+  retained as local test artifacts.
 
 ## Current verification
 
 ```text
-pnpm verify
-Passed the dependency/media foundation policy, strict type checking, build,
-18/18 foundation tests, and 97/97 Vitest tests: 34 contract, 35 Goal 2
-sync/runtime, 7 Goal 3a adapter/overlay, 9 Goal 3b storage/import tests, and 12 W4 authoring service tests.
-Baseline verification requires 62 project files.
+workspace verify: PASS (baseline, lint/typecheck, tests, build)
+Foundation tests: 18/18 passed
+Vitest: 132/132 passed across 13 files
+Playwright: 15/15 executed cases passed; one intentional small-phone extension
+case skipped because the unpacked MV3 extension gate is desktop-only
+Headed Chromium: 2/2 Wave 0 integration cases passed
+PWA bundle: 17.17 kB gzip, 8.6% of the 200 kB budget
+Extension bundles: 21.47 kB gzip combined
+Baseline verification requires 72 project files.
 ```
+
+## Wave 0 integration review — 2026-08-03
+
+- Branch: `codex/w0-integration-20260802` at committed base `d9a9a1c`.
+- Integration history: W2 merged at `0fbdfab`; W3 merged at `d9a9a1c`.
+- Working tree: 26 scoped files (18 modified, 8 new) remain local and
+  uncommitted for independent review.
+- Coordinator Moderator verdict: **PASS**, with no blocking findings.
+- Remaining review warnings: live YouTube behavior and trusted source-
+  fingerprint validation are separate external gates. The requested Fable UX/
+  accessibility and Claude code reviews have not been represented as complete.
+- Local Playwright traces cover the storage -> adapter -> runtime -> renderer
+  call graph but are test artifacts, not release evidence or signing media.
+- Retrospective: a stale W2 Vite listener initially served the wrong worktree;
+  future browser gates should verify listener ownership before testing.
+
+This review did not commit, push, open a pull request, merge into `main`, or
+deploy the Wave 0 integration changes.
 
 Node 22 and Node 24 are the declared targets. `.github/workflows/verify.yml`
 encodes the foundation check, `pnpm verify`, and the Chromium browser suite
@@ -173,15 +218,19 @@ build-only mode described in `docs/execution-plan.md`:
 
 ## Explicitly not delivered
 
-- No sign-media renderer, YouTube adapter, media cache, Chrome
-  extension, reviewer console, or publisher implementation.
+- No rights-cleared sign media, media cache, reviewer console, or publisher
+  implementation.
 - No real ASL mapping, signer video, source video, participant record, consent
-  grant, rights grant, cloud resource, or contest submission.
-- No remote, push, deployment, outreach, or production action. The reviewed
-  branch is fast-forwarded into local `main` only.
+  grant, rights grant, or contest submission. This integration slice created
+  no cloud resource and made no change to the separately documented authoring
+  service deployment above.
+- No remote, push, deployment, outreach, production action, or local `main`
+  integration occurred for this Wave 0 integration slice. These changes remain
+  on `codex/w0-integration-20260802` for independent review.
 
 The next engineering slice may add quota reporting and explicit user-controlled
-removal for local caption packs. Any active signing path, real-language pack,
-public demo, or accessibility claim remains blocked on the reviewer, final
-language scope, rights-cleared golden content, exact-hash grants, and private
-evidence system.
+removal for local caption packs. Live YouTube behavior, an active signing path,
+real-language packs, public demos, and accessibility claims remain separately
+blocked on live-site evidence, the reviewer, final language scope,
+rights-cleared golden content, exact-hash grants, and the private evidence
+system.
