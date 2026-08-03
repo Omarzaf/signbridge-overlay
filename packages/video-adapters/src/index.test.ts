@@ -4,7 +4,14 @@ import type {
   MediaClockSnapshot,
   PlaybackState,
 } from "../../sync-engine/src/index";
-import { createHtml5VideoAdapter } from "./index";
+import {
+  createHtml5VideoAdapter,
+  createYouTubeVideoAdapter,
+  extractYouTubeVideoId,
+  selectPrimaryVideo,
+  type YouTubePage,
+  type YouTubeSourceDescriptor,
+} from "./index";
 
 const SOURCE_FINGERPRINT =
   "sha256:1111111111111111111111111111111111111111111111111111111111111111";
@@ -102,6 +109,29 @@ function createMedia(): {
     media: target as HTMLVideoElement,
     state,
     enableFrameCallbacks,
+  };
+}
+
+function createYouTubePage(
+  getMedia: () => HTMLVideoElement | null,
+): {
+  readonly page: YouTubePage;
+  readonly dispatch: (eventName: string) => void;
+} {
+  const eventTarget = new EventTarget();
+  const page = {
+    documentElement: {} as HTMLElement,
+    addEventListener: eventTarget.addEventListener.bind(eventTarget),
+    removeEventListener: eventTarget.removeEventListener.bind(eventTarget),
+    querySelector: ((_selector: string): HTMLVideoElement | null =>
+      getMedia()) as Document["querySelector"],
+  } as YouTubePage;
+
+  return {
+    page,
+    dispatch: (eventName): void => {
+      eventTarget.dispatchEvent(new Event(eventName));
+    },
   };
 }
 
@@ -262,5 +292,212 @@ describe("createHtml5VideoAdapter", () => {
       playbackRate: Number.NaN,
     });
     expect(() => adapter.dispose()).not.toThrow();
+  });
+});
+
+describe("createYouTubeVideoAdapter", () => {
+  test("selects YouTube's main player instead of the first incidental video", () => {
+    const incidental = createMedia().media;
+    const primary = createMedia().media;
+    Object.defineProperties(incidental, {
+      clientWidth: { configurable: true, value: 160 },
+      clientHeight: { configurable: true, value: 90 },
+    });
+    Object.defineProperties(primary, {
+      clientWidth: { configurable: true, value: 1280 },
+      clientHeight: { configurable: true, value: 720 },
+    });
+    const page = {
+      documentElement: {} as HTMLElement,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      querySelector: vi.fn((selector: string) =>
+        selector.includes("#movie_player") ? primary : incidental,
+      ),
+      querySelectorAll: vi.fn(() => [incidental, primary]),
+    } as unknown as YouTubePage;
+
+    expect(selectPrimaryVideo(page)).toBe(primary);
+  });
+
+  test("extracts supported YouTube video identifiers without accepting other hosts", () => {
+    expect(
+      extractYouTubeVideoId("https://www.youtube.com/watch?v=synthetic-one"),
+    ).toBe("synthetic-one");
+    expect(
+      extractYouTubeVideoId("https://m.youtube.com/shorts/synthetic-two"),
+    ).toBe("synthetic-two");
+    expect(
+      extractYouTubeVideoId("https://youtube.com/live/synthetic-three"),
+    ).toBe("synthetic-three");
+    expect(
+      extractYouTubeVideoId(
+        "https://not-youtube.example/watch?v=synthetic-one",
+      ),
+    ).toBeNull();
+    expect(extractYouTubeVideoId("not a URL")).toBeNull();
+  });
+
+  test("resolves the page video identity and current source on every sample", () => {
+    const { media, state } = createMedia();
+    const { page } = createYouTubePage(() => media);
+    let pageUrl = "https://www.youtube.com/watch?v=synthetic-one";
+    const descriptors: YouTubeSourceDescriptor[] = [];
+    const snapshots: MediaClockSnapshot[] = [];
+    const adapter = createYouTubeVideoAdapter({
+      page,
+      controller: {
+        sample: (snapshot) => {
+          snapshots.push(snapshot);
+          return FALLBACK_STATE;
+        },
+      },
+      getPageUrl: () => pageUrl,
+      navigationTarget: new EventTarget(),
+      observeMutations: () => ({ disconnect: vi.fn() }),
+      resolveSourceFingerprint: (descriptor) => {
+        descriptors.push(descriptor);
+        return descriptor.currentSrc.includes("two")
+          ? REPLACEMENT_FINGERPRINT
+          : SOURCE_FINGERPRINT;
+      },
+    });
+
+    adapter.start();
+    pageUrl = "https://www.youtube.com/watch?v=synthetic-two";
+    state.currentSrc = "blob:synthetic-source-two";
+    state.currentTime = 0.3755;
+    media.dispatchEvent(new Event("loadedmetadata"));
+
+    expect(descriptors).toEqual([
+      {
+        currentSrc: "blob:synthetic-source-one",
+        pageUrl: "https://www.youtube.com/watch?v=synthetic-one",
+        videoId: "synthetic-one",
+      },
+      {
+        currentSrc: "blob:synthetic-source-two",
+        pageUrl: "https://www.youtube.com/watch?v=synthetic-two",
+        videoId: "synthetic-two",
+      },
+    ]);
+    expect(snapshots.at(-2)).toEqual({
+      sourceFingerprint: "",
+      currentTimeMs: Number.NaN,
+      paused: true,
+      seeking: true,
+      playbackRate: Number.NaN,
+    });
+    expect(snapshots.at(-1)).toEqual({
+      sourceFingerprint: REPLACEMENT_FINGERPRINT,
+      currentTimeMs: 375.5,
+      paused: true,
+      seeking: false,
+      playbackRate: 1,
+    });
+  });
+
+  test("invalidates before resampling a YouTube SPA navigation", () => {
+    const { media, state } = createMedia();
+    const { page, dispatch } = createYouTubePage(() => media);
+    let pageUrl = "https://www.youtube.com/watch?v=synthetic-one";
+    const snapshots: MediaClockSnapshot[] = [];
+    const adapter = createYouTubeVideoAdapter({
+      page,
+      controller: {
+        sample: (snapshot) => {
+          snapshots.push(snapshot);
+          return FALLBACK_STATE;
+        },
+      },
+      getPageUrl: () => pageUrl,
+      navigationTarget: new EventTarget(),
+      observeMutations: () => ({ disconnect: vi.fn() }),
+      resolveSourceFingerprint: ({ videoId }) =>
+        videoId === "synthetic-two"
+          ? REPLACEMENT_FINGERPRINT
+          : SOURCE_FINGERPRINT,
+    });
+
+    adapter.start();
+    dispatch("yt-navigate-start");
+    pageUrl = "https://www.youtube.com/watch?v=synthetic-two";
+    state.currentSrc = "blob:synthetic-source-two";
+    state.currentTime = 0;
+    dispatch("yt-navigate-finish");
+
+    expect(snapshots).toEqual([
+      {
+        sourceFingerprint: SOURCE_FINGERPRINT,
+        currentTimeMs: 0,
+        paused: true,
+        seeking: false,
+        playbackRate: 1,
+      },
+      {
+        sourceFingerprint: "",
+        currentTimeMs: Number.NaN,
+        paused: true,
+        seeking: true,
+        playbackRate: Number.NaN,
+      },
+      {
+        sourceFingerprint: REPLACEMENT_FINGERPRINT,
+        currentTimeMs: 0,
+        paused: true,
+        seeking: false,
+        playbackRate: 1,
+      },
+    ]);
+  });
+
+  test("rebinds a replaced video element from DOM mutation without a timer", () => {
+    const first = createMedia();
+    const second = createMedia();
+    second.state.currentSrc = "blob:synthetic-source-two";
+    let activeMedia = first.media;
+    let mutationCallback: (() => void) | null = null;
+    const disconnect = vi.fn();
+    const { page } = createYouTubePage(() => activeMedia);
+    const snapshots: MediaClockSnapshot[] = [];
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    const intervalSpy = vi.spyOn(globalThis, "setInterval");
+    const adapter = createYouTubeVideoAdapter({
+      page,
+      controller: {
+        sample: (snapshot) => {
+          snapshots.push(snapshot);
+          return FALLBACK_STATE;
+        },
+      },
+      getPageUrl: () =>
+        "https://www.youtube.com/watch?v=synthetic-replacement",
+      navigationTarget: new EventTarget(),
+      observeMutations: (callback) => {
+        mutationCallback = callback;
+        return { disconnect };
+      },
+      resolveSourceFingerprint: ({ currentSrc }) =>
+        currentSrc.includes("two")
+          ? REPLACEMENT_FINGERPRINT
+          : SOURCE_FINGERPRINT,
+    });
+
+    adapter.start();
+    activeMedia = second.media;
+    const notifyMutation = mutationCallback as (() => void) | null;
+    notifyMutation?.();
+
+    expect(snapshots.map(({ sourceFingerprint }) => sourceFingerprint)).toEqual(
+      [SOURCE_FINGERPRINT, "", REPLACEMENT_FINGERPRINT],
+    );
+    expect(timeoutSpy).not.toHaveBeenCalled();
+    expect(intervalSpy).not.toHaveBeenCalled();
+
+    adapter.dispose();
+    adapter.dispose();
+    expect(disconnect).toHaveBeenCalledTimes(1);
+    timeoutSpy.mockRestore();
+    intervalSpy.mockRestore();
   });
 });

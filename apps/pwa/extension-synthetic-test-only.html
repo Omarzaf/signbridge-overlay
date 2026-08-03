@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SignBridge extension synthetic-test-only fixture</title>
+    <style>
+      body { margin: 0; padding: 24px; color: #eef6ff; background: #07111f; font: 16px/1.5 system-ui, sans-serif; }
+      video { display: block; margin-block: 12px; background: #02060c; }
+      #incidental-player { width: 160px; height: 90px; }
+      #movie_player .html5-main-video { width: 640px; height: 360px; max-width: 100%; }
+      button { min-width: 44px; min-height: 44px; margin: 4px; }
+    </style>
+  </head>
+  <body>
+    <h1>SYNTHETIC TEST ONLY extension fixture</h1>
+    <p>No signed language, person, reviewed mapping, or publication authority.</p>
+    <video id="incidental-player" aria-label="Incidental synthetic video"></video>
+    <div id="movie_player">
+      <video
+        class="html5-main-video"
+        aria-label="Primary synthetic video"
+        controls
+      ></video>
+    </div>
+    <button id="navigation-start" type="button">Start synthetic navigation</button>
+    <button id="navigation-finish" type="button">Finish synthetic navigation</button>
+    <script type="module" src="/src/extensionSyntheticTestOnly.ts"></script>
+  </body>
+</html>
