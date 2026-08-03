@@ -1,6 +1,7 @@
+import process from "node:process";
 import { createHash, randomBytes } from "node:crypto";
-import { GeminiProposalClient } from "./geminiClient.js";
-import { globalMetricsTracker } from "./metrics.js";
+import { GeminiProposalClient, type GeminiProposalOutput } from "./geminiClient.js";
+import { globalRunLedger, type RunRecord } from "./runLedger.js";
 import type {
   ProposeRequest,
   ProposeResult,
@@ -34,8 +35,15 @@ export class AuthoringProposeEngine {
 
   public async proposeSegment(request: ProposeRequest): Promise<ProposeResult> {
     const startedAt = new Date().toISOString();
-    const env = request.environment ?? "synthetic_test";
 
+    // A1.2: Server-owned authority for environment
+    const serverEnv = (process.env["NODE_ENV"] === "production"
+      ? "production"
+      : process.env["NODE_ENV"] === "test" || request.environment === "synthetic_test"
+      ? "synthetic_test"
+      : request.environment ?? "development") as "synthetic_test" | "development" | "production";
+
+    // A1.2: Server generates IDs and sequence numbers
     const segmentId = request.segmentId ?? generatePrefixedId("seg");
     const packId = request.packId ?? generatePrefixedId("spk");
     const eventId = generatePrefixedId("rev");
@@ -43,32 +51,41 @@ export class AuthoringProposeEngine {
 
     const currentSeq = (this.sequenceMap.get(packId) ?? 0) + 1;
     this.sequenceMap.set(packId, currentSeq);
-    const sequence = request.sequence ?? currentSeq;
+    const sequence = currentSeq;
 
-    let proposalOutput;
+    const timedTextContent = `${request.segmentText}|${request.startTime}|${request.endTime}`;
+    const timedTextHash = sha256(timedTextContent);
+    const candidateCatalogHash = sha256(JSON.stringify(request.candidates));
+
+    let proposalOutput: GeminiProposalOutput;
     try {
       proposalOutput = await this.client.propose(request);
     } catch (err: unknown) {
+      // A1.5: Durable runs on failure
       const completedAt = new Date().toISOString();
-      const timedTextContent = `${request.segmentText}|${request.startTime}|${request.endTime}`;
-      const timedTextHash = sha256(timedTextContent);
+      const isLiveGemini = this.client.isLive && serverEnv !== "synthetic_test";
+      const executionMode = isLiveGemini ? "gemini_live" : "deterministic_fallback";
 
       const failedManifest: RunManifest = {
         schemaVersion: "1.0.0",
         runId,
-        environment: env,
+        environment: serverEnv,
         startedAt,
         completedAt,
         status: "failed",
         tool: {
-          name: "authoring_service",
+          name: isLiveGemini ? "authoring_service" : "authoring_service_deterministic",
           version: "0.1.0",
         },
-        model: {
-          provider: "google",
-          name: "gemini-2.5-flash",
-          version: "2.5",
-        },
+        ...(isLiveGemini
+          ? {
+              model: {
+                provider: "google",
+                name: "gemini-2.5-flash",
+                version: "2.5",
+              },
+            }
+          : {}),
         input: {
           timedTextHash,
           segmentCount: 1,
@@ -86,20 +103,43 @@ export class AuthoringProposeEngine {
         },
       };
 
+      const failedRecord: RunRecord = {
+        runId,
+        environment: serverEnv,
+        startedAt,
+        completedAt,
+        status: "failed",
+        executionMode,
+        runManifest: failedManifest,
+        error: err instanceof Error ? err.message : String(err),
+      };
+
+      // Write durable record before throwing
+      globalRunLedger.recordRun(failedRecord);
+
       if (err && typeof err === "object") {
-        (err as Record<string, unknown>)["failedRunManifest"] = failedManifest;
+        (err as unknown as Record<string, unknown>)["failedRunManifest"] = failedManifest;
+        (err as unknown as Record<string, unknown>)["durableRunRef"] = runId;
       }
       throw err;
     }
 
     const completedAt = new Date().toISOString();
+    const executionMode = proposalOutput.executionMode;
 
-    const timedTextContent = `${request.segmentText}|${request.startTime}|${request.endTime}`;
-    const timedTextHash = sha256(timedTextContent);
-
+    // A1.7 (#1 Adoption): Canonical ReviewUnitV2 Decision Hash Binding
     const decisionPayload = JSON.stringify({
+      schemaVersion: "2.0.0",
+      runId,
       segmentId,
       packId,
+      segmentText: request.segmentText,
+      startTime: request.startTime,
+      endTime: request.endTime,
+      signedLanguage: request.signedLanguage,
+      region: request.region,
+      timedTextHash,
+      candidateCatalogHash,
       translationStatus: proposalOutput.translationStatus,
       assetIds: proposalOutput.assetIds,
       reasonCode: proposalOutput.reasonCode,
@@ -112,7 +152,7 @@ export class AuthoringProposeEngine {
       eventId,
       sequence,
       occurredAt: completedAt,
-      environment: env,
+      environment: serverEnv,
       packId,
       segmentId,
       decisionHash,
@@ -136,22 +176,27 @@ export class AuthoringProposeEngine {
     const proposalLogContent = JSON.stringify([reviewEvent]);
     const proposalLogHash = sha256(proposalLogContent);
 
+    // A1.4: Truthful Provenance in Run Manifest (strict schema compliance)
     const runManifest: RunManifest = {
       schemaVersion: "1.0.0",
       runId,
-      environment: env,
+      environment: serverEnv,
       startedAt,
       completedAt,
       status: "succeeded",
       tool: {
-        name: "authoring_service",
+        name: executionMode === "gemini_live" ? "authoring_service" : "authoring_service_deterministic",
         version: "0.1.0",
       },
-      model: {
-        provider: "google",
-        name: "gemini-2.5-flash",
-        version: "2.5",
-      },
+      ...(executionMode === "gemini_live" && proposalOutput.actualModel
+        ? {
+            model: {
+              provider: "google",
+              name: proposalOutput.actualModel,
+              version: "2.5",
+            },
+          }
+        : {}),
       input: {
         timedTextHash,
         segmentCount: 1,
@@ -169,10 +214,18 @@ export class AuthoringProposeEngine {
       },
     };
 
-    globalMetricsTracker.recordProposal(
-      proposalOutput.translationStatus,
-      proposalOutput.reasonCode,
-    );
+    // A1.5: Record durable run in append-only ledger for succeeded & abstained runs
+    const runRecord: RunRecord = {
+      runId,
+      environment: serverEnv,
+      startedAt,
+      completedAt,
+      status: proposalOutput.translationStatus === "unsupported" ? "abstained" : "succeeded",
+      executionMode,
+      runManifest,
+      reviewEvent,
+    };
+    globalRunLedger.recordRun(runRecord);
 
     return {
       segmentId,
@@ -183,6 +236,8 @@ export class AuthoringProposeEngine {
       ...(proposalOutput.reasonCode ? { reasonCode: proposalOutput.reasonCode } : {}),
       reviewEvent,
       runManifest,
+      durableRunRef: runId,
+      executionMode,
     };
   }
 }

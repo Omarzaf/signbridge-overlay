@@ -1,7 +1,8 @@
 # ==========================================
 # Stage 1: Builder
+# Pinned base image version to prevent unverified floating updates (A1.8)
 # ==========================================
-FROM node:22-slim AS builder
+FROM node:22.14.0-slim AS builder
 
 WORKDIR /app
 
@@ -41,8 +42,18 @@ RUN pnpm install --frozen-lockfile --filter ./services/authoring... --prod
 
 # ==========================================
 # Stage 2: Production Runner
+# Pinned base image version (A1.8)
 # ==========================================
-FROM node:22-slim AS runner
+FROM node:22.14.0-slim AS runner
+
+# OCI Container Provenance and SBOM Metadata (A1.8)
+LABEL org.opencontainers.image.title="signbridge-authoring-service"
+LABEL org.opencontainers.image.description="SignBridge AI Authoring Service (Hardened Trust Boundary)"
+LABEL org.opencontainers.image.version="0.1.0"
+LABEL org.opencontainers.image.vendor="SignBridge Project"
+LABEL org.opencontainers.image.licenses="Apache-2.0"
+LABEL org.opencontainers.image.source="https://github.com/signbridge/signbridge-overlay"
+LABEL org.opencontainers.image.documentation="https://github.com/signbridge/signbridge-overlay/tree/main/services/authoring"
 
 WORKDIR /app
 
