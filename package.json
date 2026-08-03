@@ -11,9 +11,10 @@
   },
   "scripts": {
     "build": "pnpm typecheck && pnpm build:pwa",
-    "build:pwa": "vite build apps/pwa --outDir ../../dist/pwa --emptyOutDir",
-    "dev:pwa": "vite apps/pwa --host 127.0.0.1 --port 4173",
-    "lint": "node --check tools/verify-baseline.mjs && node --check tests/baseline/verify-baseline.test.mjs && pnpm typecheck",
+    "build:pwa": "pnpm synthetic-motion && vite build apps/pwa --outDir ../../dist/pwa --emptyOutDir && node tools/assert-bundle-budget.mjs",
+    "dev:pwa": "pnpm synthetic-motion && vite apps/pwa --host 127.0.0.1 --port 4173",
+    "synthetic-motion": "node tools/generate-synthetic-motion.mjs --out apps/pwa/public",
+    "lint": "node --check tools/verify-baseline.mjs && node --check tools/assert-bundle-budget.mjs && node --check tools/generate-synthetic-motion.mjs && node --check tests/baseline/verify-baseline.test.mjs && pnpm typecheck",
     "test": "pnpm test:foundation && pnpm test:unit",
     "test:e2e": "playwright test",
     "test:foundation": "node --test tests/baseline/verify-baseline.test.mjs",

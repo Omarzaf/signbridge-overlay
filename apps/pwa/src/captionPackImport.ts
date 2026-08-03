@@ -6,6 +6,8 @@ import type {
 
 const IMPORT_SUCCESS =
   "Structural validation and local digest passed. This draft is not published and cannot activate signing.";
+const IMPORT_FAILURE =
+  "The caption pack could not be checked. The previous caption fallback remains available.";
 
 const IMPORT_MESSAGES: Readonly<
   Record<CaptionPackImportErrorCode, string>
@@ -80,13 +82,19 @@ export function bindCaptionPackImport({
 
     input.disabled = true;
     status.textContent = "Checking the local caption pack…";
-    const message = await importCaptionPack(file, store, onVerified);
-    if (disposed) {
-      return;
+    try {
+      const message = await importCaptionPack(file, store, onVerified);
+      if (!disposed) {
+        status.textContent = message;
+      }
+    } catch {
+      if (!disposed) {
+        status.textContent = IMPORT_FAILURE;
+      }
+    } finally {
+      input.value = "";
+      input.disabled = false;
     }
-    status.textContent = message;
-    input.value = "";
-    input.disabled = false;
   };
 
   input.addEventListener("change", handleChange);

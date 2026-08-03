@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SignBridge site access</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <h1>SignBridge</h1>
+      <p id="site-summary">
+        YouTube access is included. Other video sites require a separate grant.
+      </p>
+      <section aria-labelledby="playback-status-heading">
+        <h2 id="playback-status-heading">Authoritative playback status</h2>
+        <p id="playback-status">
+          Waiting for the browser-controlled status badge.
+        </p>
+      </section>
+      <section id="grant-panel" hidden>
+        <h2>Allow this site?</h2>
+        <p>
+          SignBridge will ask Chrome for access only to the site shown below.
+          The grant lets the local overlay inspect its video element. It does
+          not upload captions or viewing history.
+        </p>
+        <p class="site" id="site-origin"></p>
+        <button id="grant-site" type="button">Continue to Chrome prompt</button>
+      </section>
+      <p id="status" role="status" aria-live="polite"></p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

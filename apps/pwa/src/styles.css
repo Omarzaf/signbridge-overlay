@@ -70,22 +70,61 @@ main {
 
 .player-shell {
   position: relative;
-  min-height: 28rem;
-  overflow: hidden;
   border: 1px solid #466387;
   border-radius: 1rem;
   background: #02060c;
 }
 
+.player-stage {
+  position: relative;
+  overflow: hidden;
+  min-height: 24rem;
+  border-radius: 1rem 1rem 0 0;
+}
+
 #source-video {
   display: block;
   width: 100%;
-  min-height: 28rem;
+  min-height: 24rem;
 }
 
+/*
+ * The motion surface sits top-left, clear of the browser's own video controls
+ * along the bottom edge. Its size and position come from the renderer's
+ * geometry, which can only letterbox.
+ */
+.motion-surface {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: min(18rem, 45%);
+  height: min(10rem, 40%);
+  margin: 0.75rem;
+}
+
+.sign-media-surface {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/*
+ * Docked by default: docs/accessibility-acceptance.md requires the signing
+ * layer not to cover captions or the source video's controls, and a floating
+ * bottom overlay covers exactly those. Floating stays one button away.
+ */
 #signing-overlay {
+  position: static;
+  padding: 0.75rem;
+}
+
+#signing-overlay.signbridge-overlay-root--float {
   position: absolute;
   inset: auto 1rem 1rem;
+  padding: 0;
+}
+
+#signing-overlay.signbridge-overlay-root--float:has(.signbridge-overlay--top) {
+  inset: 1rem 1rem auto;
 }
 
 .signbridge-overlay {
@@ -97,8 +136,95 @@ main {
   box-shadow: 0 1rem 3rem rgb(0 0 0 / 45%);
 }
 
-.signbridge-overlay--top {
-  transform: translateY(calc(-28rem + 100% + 2rem));
+.signbridge-overlay__detail {
+  margin-block: 0.5rem;
+  color: #c8d7ec;
+  line-height: 1.55;
+}
+
+.motion-panel {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border: 1px solid #466387;
+  border-radius: 0.85rem;
+  background: #0a192b;
+}
+
+.integration-trace {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #466387;
+  border-radius: 0.85rem;
+  background: #0a192b;
+}
+
+.integration-trace h2,
+.integration-trace p {
+  margin-block: 0.35rem;
+}
+
+.integration-trace ol {
+  margin-block: 0.75rem 0;
+  padding-inline-start: 1.4rem;
+  color: #c8d7ec;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.motion-panel h2 {
+  margin-block: 0.35rem;
+  font-size: 1.1rem;
+}
+
+.motion-panel code {
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.35rem;
+  background: #142f4e;
+  color: #bce4ff;
+}
+
+.motion-panel p {
+  max-width: 48rem;
+  margin-block: 0.35rem;
+  color: #c8d7ec;
+  line-height: 1.55;
+}
+
+#motion-status {
+  min-height: 1.5rem;
+  color: #f5f7fb;
+  font-weight: 750;
+}
+
+.motion-panel__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.motion-panel button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid #8fc9ff;
+  border-radius: 0.55rem;
+  background: #173f68;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.motion-panel button:hover {
+  background: #205689;
+}
+
+.motion-panel button:focus-visible {
+  outline: 3px solid #ffdc8c;
+  outline-offset: 3px;
 }
 
 .signbridge-overlay__label {
@@ -138,6 +264,7 @@ main {
 }
 
 .signbridge-overlay button {
+  min-width: 44px;
   min-height: 44px;
   padding: 0.65rem 0.85rem;
   border: 1px solid #8fc9ff;
@@ -237,21 +364,31 @@ main {
     padding: 0.75rem;
   }
 
-  .player-shell,
+  .player-stage,
   #source-video {
-    min-height: 32rem;
+    min-height: 18rem;
   }
 
-  #signing-overlay {
-    inset-inline: 0.5rem;
-    bottom: 0.5rem;
+  /*
+   * Below this width there is no room to float anything over the video without
+   * covering it, so the overlay docks regardless of the stored preference. The
+   * alternate layout the acceptance contract asks for is the docked one.
+   */
+  #signing-overlay.signbridge-overlay-root--float,
+  #signing-overlay.signbridge-overlay-root--float:has(.signbridge-overlay--top) {
+    position: static;
+    inset: auto;
+    padding: 0.5rem;
   }
 
-  .signbridge-overlay--top {
-    transform: translateY(calc(-32rem + 100% + 1rem));
+  .motion-surface {
+    width: 40%;
+    height: 30%;
+    margin: 0.5rem;
   }
 
-  .signbridge-overlay__controls {
+  .signbridge-overlay__controls,
+  .motion-panel__controls {
     display: grid;
   }
 
@@ -263,10 +400,30 @@ main {
 @media (forced-colors: active) {
   .test-boundary,
   .player-shell,
+  .player-stage,
   .signbridge-overlay,
   .signbridge-overlay button,
+  .motion-panel,
+  .motion-panel button,
   .caption-pack-import,
   .caption-pack-import input {
     border-color: CanvasText;
+  }
+}
+
+/*
+ * The clip's own animation runs on the SVG document timeline, which CSS cannot
+ * stop; apps/pwa/src/syntheticMotionSurface.ts reads this same preference and
+ * holds the clip on a still frame, with a control to start it deliberately.
+ * This rule covers everything else.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
