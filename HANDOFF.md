@@ -2,9 +2,9 @@
 
 ## Goal
 
-Complete W3: add a dependency-free YouTube adapter, narrowly permissioned
-Manifest V3 extension, and permission/CSP release tests without real signing
-content, cloud access, or public release.
+Complete Goal 3b: add size-limited, structurally validated, digest-verified
+IndexedDB import and retrieval for synthetic caption-only SignPacks without
+real signing content, cloud access, or public release.
 
 ## Decisions already made
 
@@ -69,56 +69,54 @@ content, cloud access, or public release.
   stored, re-verified pack retrievable instead of claiming a storage failure.
 - The foundation checker matches lockfile specifiers by pattern, so a pnpm
   indentation or quoting change cannot silently disable the toolchain check.
+- Authoring service (`services/authoring/`) built with pinned `@google/genai` dependency, exposing HTTP `POST /propose`, `GET /health`, and `GET /metrics`.
+- Constrained proposal engine restricts sign candidate selections strictly to supplied asset candidate IDs and abstains with `unsupported` and valid reason codes when context/vocabulary cannot be mapped.
+- Generated `proposal_created` review events and run manifests strictly conform to versioned JSON Schemas (`review-event.schema.json` and `run-manifest.schema.json`) with enforced privacy flags (`containsTranscript: false`, `containsIdentity: false`, `containsMediaUrl: false`).
+- AI-Native Operations metrics tracker records false-supported rate, coverage, top-1 acceptance rate, changes requested, rejections, and reason code breakdown.
 - A CI workflow encodes the foundation check, `pnpm verify`, and the Chromium
   suite across the Node 22 and Node 24 lines.
+
+### W3 — YouTube adapter and Chrome extension
+
 - A dependency-free YouTube adapter wraps the exact HTML5 media clock and
   resolves the current source, page URL, and YouTube video ID on every sample.
-- YouTube SPA navigation, source-identity changes, and video-element replacement
-  emit an invalid snapshot before rebinding, without an independent timer.
+- YouTube SPA navigation, source-identity changes, and video-element
+  replacement emit an invalid snapshot before rebinding, without an independent
+  timer. A video change without a page load therefore invalidates the
+  fingerprint instead of continuing over new content.
 - The build-free Manifest V3 extension requires only `www.youtube.com` and
-  `m.youtube.com`; generic HTTP(S) sites remain optional, exact-origin grants.
+  `m.youtube.com`. Generic HTTP(S) sites remain optional, exact-origin grants;
+  there is no `<all_urls>` and no remotely executed code.
 - The popup explains optional access before the user initiates Chrome's prompt.
-  Executable code is local and extension-page CSP permits only self-hosted code.
+  Executable code is local and the extension-page CSP permits only self-hosted
+  code.
 - The local content overlay preserves captions and states honestly that no
   reviewed SignPack is loaded.
+
+Local unpacked-extension smoke test: Chromium loaded "SignBridge Local Overlay"
+as enabled with zero runtime warnings and rendered the local popup. No live
+YouTube navigation occurred, and no Chrome Web Store listing exists — judges are
+expected to load the unpacked extension.
 
 ## Current verification
 
 ```text
-corepack pnpm verify
+pnpm verify
 Passed the dependency/media foundation policy, strict type checking, build,
-18/18 foundation tests, and 92/92 Vitest tests. Baseline verification requires
-62 project files and checked 106 repository files.
-
-corepack pnpm test:e2e
-Passed 8/8 across desktop and small-phone Chromium, including IndexedDB
-persistence across reload and invalid-import preservation.
-
-Workspace verification
-Passed all 4 required commands for the w3-extension worktree.
-
-Local unpacked-extension smoke test
-Chromium loaded "SignBridge Local Overlay" as enabled with zero runtime
-warnings, and rendered the local popup. No live YouTube navigation occurred.
-
-Committed as e0a380c on codex/w3-extension-20260729.
-
-Checksum-verified Node 22.23.1 passed the complete verification suite when the
-Goal 3b slice landed. Node 24.14.1 passes the complete suite as of the review
-follow-up on 2026-07-28. The declared minimum is Node 22.13 because pinned pnpm
-11.10.0 rejects Node 22.12; the range admits the 22 and 24 LTS lines and
-excludes the unverified, end-of-life Node 23 line.
-
-Workspace control-plane tests
-Passed 12/12. SignBridge resolves through the registry. Workspace doctor reports
-0 errors and 14 warnings: 13 pre-existing workspace warnings plus one expected
-task-local warning for the three retained SignBridge worktrees.
+18/18 foundation tests, and 101/101 Vitest tests: the previous 94 plus 7 W3
+YouTube-adapter and extension permission/CSP tests.
+Baseline verification requires 62 project files and checked 119 repository
+files.
 ```
+
+Measured on the merge of `codex/w3-extension-20260729` into `main`, not on
+either branch alone.
 
 Node 22 and Node 24 are the declared targets. `.github/workflows/verify.yml`
 encodes the foundation check, `pnpm verify`, and the Chromium browser suite
-across both lines. That workflow has never executed: this repository has no Git
-remote, so CI remains unproven until one is configured.
+across both lines. The Git remote is configured
+(`github.com/Omarzaf/signbridge-overlay`) and CI executes on pull requests and
+pushes to `main`.
 
 ## Remaining human gates
 
@@ -140,15 +138,15 @@ remote, so CI remains unproven until one is configured.
 
 ## Explicitly not delivered
 
-- No sign-media renderer, media cache, reviewer console, Gemini authoring
-  service, publisher implementation, Chrome Web Store listing, or live
-  YouTube-network validation.
+- No sign-media renderer, YouTube adapter, media cache, Chrome
+  extension, reviewer console, or publisher implementation.
 - No real ASL mapping, signer video, source video, participant record, consent
   grant, rights grant, cloud resource, or contest submission.
-- No push, merge into local `main`, deployment, outreach, or production action.
+- No remote, push, deployment, outreach, or production action. The reviewed
+  branch is fast-forwarded into local `main` only.
 
-The next W3 action is integrator review of `e0a380c`. The future Codex W8 slice
-is sequenced after W2 under `docs/execution-plan.md`. Any active signing path,
-real-language pack, public demo, or accessibility claim remains blocked on
-the reviewer, final language scope, rights-cleared golden content, exact-hash
-grants, and private evidence system.
+The next engineering slice may add quota reporting and explicit user-controlled
+removal for local caption packs. Any active signing path, real-language pack,
+public demo, or accessibility claim remains blocked on the reviewer, final
+language scope, rights-cleared golden content, exact-hash grants, and private
+evidence system.
