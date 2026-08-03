@@ -92,7 +92,9 @@ function createStructuralReleaseCandidate(): MutableObject {
       sha256:
         "sha256:5555555555555555555555555555555555555555555555555555555555555555",
       mediaType: "video/webm",
-      durationMs: 1000,
+      // Exactly covers the fixture's single 0-10000ms segment; the v1 release
+      // invariant requires equality, not merely a plausible clip.
+      durationMs: 10000,
     },
   ];
   const event: MutableObject = {
@@ -665,6 +667,51 @@ describe("draft release candidate", () => {
     });
   });
 
+  test("rejects more than one asset for a single segment", () => {
+    const multiAsset = createStructuralReleaseCandidate();
+    const pack = multiAsset["signPack"] as MutableObject;
+    const segment = (pack["segments"] as MutableObject[])[0]!;
+    const secondAsset = {
+      assetId: "ast_synthetic000002",
+      path: "assets/synthetic-second.webm",
+      sha256:
+        "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+      mediaType: "video/webm",
+      durationMs: 10000,
+    };
+    (pack["assets"] as MutableObject[]).push(cloneObject(secondAsset));
+    segment["assetIds"] = ["ast_synthetic000001", "ast_synthetic000002"];
+    const event = (multiAsset["reviewEvents"] as MutableObject[])[0]!;
+    event["assetIds"] = ["ast_synthetic000001", "ast_synthetic000002"];
+    const ledgerAssets = (multiAsset["assetLedger"] as MutableObject)[
+      "assets"
+    ] as MutableObject[];
+    const secondHash =
+      "sha256:4444444444444444444444444444444444444444444444444444444444444444";
+    const ledgerCopy = cloneObject(ledgerAssets[0]);
+    ledgerCopy["assetId"] = "ast_synthetic000002";
+    ledgerCopy["path"] = "assets/synthetic-second.webm";
+    ledgerCopy["sha256"] = secondHash;
+    (ledgerCopy["consent"] as MutableObject)["exactHash"] = secondHash;
+    (ledgerCopy["rights"] as MutableObject)["exactHash"] = secondHash;
+    (ledgerCopy["reviewerApproval"] as MutableObject)["approvedHash"] =
+      secondHash;
+    ledgerAssets.push(ledgerCopy);
+
+    const result = validateReleaseCandidate(multiAsset);
+    expect(issueCodes(result)).toContain("multi_asset_violation");
+  });
+
+  test("rejects an asset whose duration does not match its segment", () => {
+    const mismatch = createStructuralReleaseCandidate();
+    const pack = mismatch["signPack"] as MutableObject;
+    const asset = (pack["assets"] as MutableObject[])[0]!;
+    asset["durationMs"] = 9000;
+
+    const result = validateReleaseCandidate(mismatch);
+    expect(issueCodes(result)).toContain("asset_duration");
+  });
+
   test("rejects synthetic language sentinels and non-production approvals", () => {
     const sentinel = createStructuralReleaseCandidate();
     const language = (sentinel["signPack"] as MutableObject)[
@@ -965,6 +1012,29 @@ describe("contest evidence coverage", () => {
       "2026-02";
     expect(issueCodes(validateContestEvidence(mismatch))).toContain(
       "period_month",
+    );
+  });
+
+  test("rejects an evidence period that ends after the ledger was generated", () => {
+    const future = createContestEvidenceLedger();
+    const record = contestRecord(future, "education_category_relevance");
+    record["periodEnd"] = "2026-12-31T23:59:59.000Z";
+
+    const result = validateContestEvidence(future);
+    expect(issueCodes(result)).toContain("evidence_period");
+    expect(
+      issuePaths(result).some((path) => path.endsWith(".periodEnd")),
+    ).toBe(true);
+  });
+
+  test("accepts an evidence period ending exactly at the generation time", () => {
+    const boundary = createContestEvidenceLedger();
+    const generatedAt = boundary["generatedAt"] as string;
+    contestRecord(boundary, "education_category_relevance")["periodEnd"] =
+      generatedAt;
+
+    expect(issueCodes(validateContestEvidence(boundary))).not.toContain(
+      "evidence_period",
     );
   });
 

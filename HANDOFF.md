@@ -120,6 +120,7 @@ signing content, cloud access, or public release.
 ## Current verification
 
 ```text
+Wave 0 integration, measured on codex/w0-integration-20260802:
 workspace verify: PASS (baseline, lint/typecheck, tests, build)
 Foundation tests: 18/18 passed
 Vitest: 132/132 passed across 13 files
@@ -129,14 +130,24 @@ Headed Chromium: 2/2 Wave 0 integration cases passed
 PWA bundle: 17.17 kB gzip, 8.6% of the 200 kB budget
 Extension bundles: 21.47 kB gzip combined
 Baseline verification requires 72 project files.
+
+ReviewUnitV2 contract, measured on claude/w0-reviewunit-v2-20260802:
+Passed the dependency/media foundation policy, strict type checking, build,
+20/20 foundation tests, and 117/117 Vitest tests: 38 contract, 12 review unit,
+4 append-only ledger, 35 Goal 2 sync/runtime, 7 Goal 3a adapter/overlay,
+9 Goal 3b storage/import tests, and 12 W4 authoring service tests.
+Baseline verification requires 67 project files and scans 19 playback sources.
 ```
+
+The two blocks above were measured on separate branches and do not describe
+one tree. The contract branch's playback-source count rose from 15 to 19
+because the foundation scan now opens `.tsx`, `.js`, and `.mjs` as well as
+`.ts`; four files in the playback path were previously never read.
 
 ## Wave 0 integration review — 2026-08-03
 
 - Branch: `codex/w0-integration-20260802` at committed base `d9a9a1c`.
 - Integration history: W2 merged at `0fbdfab`; W3 merged at `d9a9a1c`.
-- Working tree: 26 scoped files (18 modified, 8 new) remain local and
-  uncommitted for independent review.
 - Coordinator Moderator verdict: **PASS**, with no blocking findings.
 - Remaining review warnings: live YouTube behavior and trusted source-
   fingerprint validation are separate external gates. The requested Fable UX/
@@ -146,8 +157,11 @@ Baseline verification requires 72 project files.
 - Retrospective: a stale W2 Vite listener initially served the wrong worktree;
   future browser gates should verify listener ownership before testing.
 
-This review did not commit, push, open a pull request, merge into `main`, or
-deploy the Wave 0 integration changes.
+The review itself did not commit, push, open a pull request, merge, or deploy.
+Those steps were taken afterwards by the integrator: the 26 scoped files were
+committed as `97cfc97`, and the branch reached `main` through PR #9. CI on
+`main` is green across `pnpm verify` and the Chromium suite on Node 22 and 24.
+No deployment has been performed; the running Cloud Run revision is untouched.
 
 Node 22 and Node 24 are the declared targets. `.github/workflows/verify.yml`
 encodes the foundation check, `pnpm verify`, and the Chromium browser suite
@@ -196,6 +210,45 @@ the proof that a model was called. The model abstained with
 
 Contest requirement two — a live Gemini call in the deployed application — is
 therefore **met**.
+
+## Wave 0 contract repair — `claude/w0-reviewunit-v2-20260802`
+
+Closes audit findings P1 #1, #8, #9 and P2 #3 from
+`docs/fable-agent-strategy-handoff.md`. Nothing here is merged.
+
+- **ReviewUnitV2** (`contracts/review-unit.schema.json`,
+  `packages/signpack-schema/src/reviewUnit.ts`). Human approval now binds the
+  source fingerprint, timed-text hash, exact segment range, signed language and
+  region, catalog version and candidate-set hash, selected asset hashes,
+  presentation state, and proposal/run identity. Versioned `2.0.0`,
+  independently of the pack schema. Canonicalisation is fixed by the function
+  and documented in ADR 0005; an invalid unit throws rather than producing an
+  authoritative-looking hash. Hashing uses WebCrypto, so the package stays
+  dependency-free.
+- **The audit's adversarial probe is now a permanent regression test.** Eleven
+  single-field variations must each change the hash. Under the old
+  `decisionHash` they did not.
+- **v1 single-asset invariant.** A segment resolves to at most one asset whose
+  duration equals the segment exactly, enforced in the review unit and in
+  release-candidate preflight (`multi_asset_violation`, `asset_duration`). Two
+  fixtures that embodied the defect were corrected: the release-candidate
+  helper paired a 1000 ms asset with a 10000 ms segment.
+- **Evidence periods** must end on or before `generatedAt`
+  (`evidence_period`). The contest-evidence fixture claimed coverage through
+  31 January while being generated on 1 January; its `generatedAt` moved to
+  1 February so the fixture is truthful.
+- **Append-only ledger interfaces** (`packages/signpack-schema/src/ledger.ts`)
+  for the durable run/decision records the authoring service must write for
+  success, abstention, and failure, with `checkLedgerAppend` centralising the
+  monotonic no-rewrite rule.
+- **Foundation scan widened** to `.tsx`, `.js`, and `.mjs`, with a negative
+  test per extension, and its success message no longer claims more than it
+  checked.
+- `docs/publisher-refusal-matrix.md` specifies the ten refusal paths for the
+  Wave 1 publisher. It is a specification; no publisher code exists.
+
+Still open on this branch: the authoring service continues to emit the old
+`decisionHash`. Adoption of the review-unit hash is Gemini's A1.7.
 
 ## Remaining human gates
 
