@@ -124,16 +124,35 @@ free-trial account, region `us-central1`.
   schema-valid `proposal_created` review event and run manifest; its first
   production call correctly abstained with `unsupported_vocabulary` rather
   than selecting an unrelated candidate.
-- **No Gemini API key is configured.** The service therefore runs its
-  deterministic fallback engine and issues no model call, so the contest
-  requirement for a live Gemini call in the deployed application is open.
+- **Gemini is reached through Vertex AI, not the Developer API.** Revision
+  `authoring-service-00004-94h` runs with `GOOGLE_GENAI_USE_VERTEXAI=true`,
+  `GOOGLE_CLOUD_PROJECT`, and `GOOGLE_CLOUD_LOCATION`. Authentication is
+  Application Default Credentials via the Cloud Run runtime service account, so
+  no long-lived key is stored, and the default account already carried
+  sufficient permission — no extra IAM binding was required.
+
+### Why not the Gemini Developer API
+
+An API key was configured first and every live call returned
+`429 RESOURCE_EXHAUSTED`, "Your prepayment credits are depleted". The Gemini
+Developer API bills against AI Studio's prepaid pool, which **Google Cloud
+trial credits cannot fund**. Vertex AI bills the Cloud project instead, so the
+hackathon's $300 covers it. A direct probe of `gemini-2.5-flash` through Vertex
+returned 200 before the code was changed. The `GEMINI_API_KEY` secret still
+exists but is now unused; API-key mode remains the code fallback.
+
+### Live-call evidence
+
+A `production` request returned HTTP 200 with `startedAt 00:35:24.310Z` and
+`completedAt 00:35:28.426Z` — 4.1 seconds of real round trip. The deterministic
+fallback completes within the same millisecond, so the elapsed time is itself
+the proof that a model was called. The model abstained with
+`unsupported_vocabulary` rather than selecting an unrelated candidate.
+
+Contest requirement two — a live Gemini call in the deployed application — is
+therefore **met**.
 
 ## Remaining human gates
-
-**Blocking contest eligibility, and only the owner can perform it:** create a
-Gemini API key in `gemini-hackathon-0802402`, store it as the `GEMINI_API_KEY`
-secret, and redeploy with `--set-secrets`. Until then the deployed service makes
-no Gemini call and contest requirement two stays unmet.
 
 The linguistic and rights gates below remain deferred under the Tier 3
 build-only mode described in `docs/execution-plan.md`:
