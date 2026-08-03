@@ -10,13 +10,13 @@
 # Usage, from the repository root:
 #   gcloud builds submit --config services/authoring/cloudbuild.yaml .
 #
-# PROJECT_ID is supplied by Cloud Build, so this file pins no project.
+# PROJECT_ID and COMMIT_SHA are supplied by Cloud Build. Immutable tags are enforced (A1.8).
 
 substitutions:
   _REGION: us-central1
   _REPO: signbridge-repo
   _IMAGE_NAME: authoring-service
-  _TAG: latest
+  _BUILD_TAG: ${COMMIT_SHA}
 
 steps:
   - name: gcr.io/cloud-builders/docker
@@ -24,11 +24,12 @@ steps:
     args:
       - build
       - --file=services/authoring/Dockerfile
-      - --tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_NAME}:${_TAG}
+      - --build-arg=COMMIT_SHA=${COMMIT_SHA}
+      - --tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_NAME}:${_BUILD_TAG}
       - .
 
 images:
-  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_NAME}:${_TAG}
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_NAME}:${_BUILD_TAG}
 
 options:
   logging: CLOUD_LOGGING_ONLY

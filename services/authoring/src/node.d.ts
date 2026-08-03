@@ -12,6 +12,8 @@ declare module "node:process" {
 declare module "node:buffer" {
   export class Buffer {
     static from(data: string, encoding?: string): Buffer;
+    static concat(list: readonly any[], totalLength?: number): Buffer;
+    subarray(start?: number, end?: number): Buffer;
     length: number;
     toString(encoding?: string): string;
   }
@@ -21,6 +23,7 @@ declare module "node:http" {
   export interface IncomingMessage {
     method?: string;
     url?: string;
+    statusCode?: number;
     headers: Record<string, string | string[] | undefined>;
     socket?: { remoteAddress?: string };
     destroy(): void;
@@ -41,9 +44,20 @@ declare module "node:http" {
     address(): { address: string; family: string; port: number } | string | null;
   }
 
+  export interface ClientRequest {
+    write(chunk: any): boolean;
+    end(): void;
+  }
+
   export function createServer(
     requestListener?: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>,
   ): Server;
+
+  export function request(
+    url: string | URL,
+    options?: any,
+    callback?: (res: IncomingMessage) => void,
+  ): ClientRequest;
 }
 
 declare module "node:crypto" {

@@ -7,6 +7,10 @@ export interface GeminiProposalOutput {
   assetIds: string[];
   confidence: number;
   reasonCode?: ReasonCode;
+  executionMode: "gemini_live" | "deterministic_fallback" | "synthetic_test";
+  authMode: "vertex_ai" | "api_key" | "none";
+  actualModel?: string;
+  fallbackReason?: string;
 }
 
 export class GeminiProposalClient {
@@ -20,11 +24,6 @@ export class GeminiProposalClient {
     const location = process.env["GOOGLE_CLOUD_LOCATION"] ?? "us-central1";
 
     if (useVertex && project) {
-      // Vertex AI authenticates through Application Default Credentials — on
-      // Cloud Run that is the runtime service account — so no long-lived key is
-      // stored or rotated. It also bills the Google Cloud project, whereas the
-      // Gemini Developer API draws on AI Studio's separate prepaid pool, which
-      // Google Cloud credits cannot fund.
       this.aiClient = new GoogleGenAI({ vertexai: true, project, location });
       this.authMode = "vertex_ai";
     } else {
@@ -48,7 +47,10 @@ export class GeminiProposalClient {
   public async propose(request: ProposeRequest): Promise<GeminiProposalOutput> {
     // Synthetic environment check or missing API key -> fallback to deterministic heuristic engine
     if (!this.aiClient || request.environment === "synthetic_test") {
-      return this.proposeDeterministic(request);
+      const fallbackReason = !this.aiClient
+        ? "no_model_credentials"
+        : "synthetic_test_environment";
+      return this.proposeDeterministic(request, fallbackReason);
     }
 
     try {
@@ -65,7 +67,7 @@ export class GeminiProposalClient {
     request: ProposeRequest,
   ): Promise<GeminiProposalOutput> {
     if (!this.aiClient) {
-      return this.proposeDeterministic(request);
+      return this.proposeDeterministic(request, "no_model_credentials");
     }
 
     const candidateIds = request.candidates.map((c) => c.assetId);
@@ -135,6 +137,9 @@ Valid Reason Codes for unsupported:
         assetIds: [],
         confidence: 0,
         reasonCode: "low_confidence",
+        executionMode: "gemini_live",
+        authMode: this.authMode,
+        actualModel: this.modelName,
       };
     }
 
@@ -157,6 +162,9 @@ Valid Reason Codes for unsupported:
           assetIds: [],
           confidence: 0.0,
           reasonCode: "unsupported_vocabulary",
+          executionMode: "gemini_live",
+          authMode: this.authMode,
+          actualModel: this.modelName,
         };
       }
 
@@ -166,6 +174,9 @@ Valid Reason Codes for unsupported:
           assetIds: [],
           confidence: 0.0,
           reasonCode: "no_candidate_match",
+          executionMode: "gemini_live",
+          authMode: this.authMode,
+          actualModel: this.modelName,
         };
       }
 
@@ -175,6 +186,9 @@ Valid Reason Codes for unsupported:
           assetIds: [],
           confidence: 0.0,
           reasonCode: "low_confidence",
+          executionMode: "gemini_live",
+          authMode: this.authMode,
+          actualModel: this.modelName,
         };
       }
 
@@ -182,6 +196,9 @@ Valid Reason Codes for unsupported:
         translationStatus: "proposed",
         assetIds: parsed.assetIds,
         confidence: rawConfidence,
+        executionMode: "gemini_live",
+        authMode: this.authMode,
+        actualModel: this.modelName,
       };
     }
 
@@ -190,12 +207,21 @@ Valid Reason Codes for unsupported:
       assetIds: [],
       confidence: rawConfidence,
       reasonCode: (parsed.reasonCode as ReasonCode) ?? "unsupported_vocabulary",
+      executionMode: "gemini_live",
+      authMode: this.authMode,
+      actualModel: this.modelName,
     };
   }
 
   private proposeDeterministic(
     request: ProposeRequest,
+    fallbackReason: string,
   ): GeminiProposalOutput {
+    const mode =
+      request.environment === "synthetic_test"
+        ? "synthetic_test"
+        : "deterministic_fallback";
+
     const textLower = request.segmentText.toLowerCase().trim();
 
     if (!request.candidates || request.candidates.length === 0) {
@@ -204,6 +230,9 @@ Valid Reason Codes for unsupported:
         assetIds: [],
         confidence: 0,
         reasonCode: "no_candidate_match",
+        executionMode: mode,
+        authMode: this.authMode,
+        fallbackReason,
       };
     }
 
@@ -227,6 +256,9 @@ Valid Reason Codes for unsupported:
         translationStatus: "proposed",
         assetIds: selectedIds,
         confidence: 0.95,
+        executionMode: mode,
+        authMode: this.authMode,
+        fallbackReason,
       };
     }
 
@@ -235,6 +267,9 @@ Valid Reason Codes for unsupported:
       assetIds: [],
       confidence: 0.1,
       reasonCode: "unsupported_vocabulary",
+      executionMode: mode,
+      authMode: this.authMode,
+      fallbackReason,
     };
   }
 }

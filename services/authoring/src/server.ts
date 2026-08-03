@@ -2,12 +2,12 @@ import process from "node:process";
 import { Buffer } from "node:buffer";
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { AuthoringProposeEngine } from "./proposeEngine.js";
-import { globalMetricsTracker } from "./metrics.js";
+import { globalRunLedger } from "./runLedger.js";
+import { getTrustedClientIp, globalRateLimiter } from "./rateLimiter.js";
+import { validateProposeRequest } from "./validation.js";
 import { GeminiApiError, type ProposeRequest } from "./types.js";
 
 const MAX_PAYLOAD_BYTES = 1024 * 1024; // 1MB
-const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
-const RATE_LIMIT_MAX_REQUESTS = 60; // 60 requests per minute
 
 export class PayloadTooLargeError extends Error {
   constructor(message = "Request body exceeds maximum size limit of 1MB") {
@@ -16,29 +16,25 @@ export class PayloadTooLargeError extends Error {
   }
 }
 
-const rateLimitMap = new Map<string, number[]>();
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const timestamps = rateLimitMap.get(ip) ?? [];
-  const validTimestamps = timestamps.filter((ts) => now - ts < RATE_LIMIT_WINDOW_MS);
-
-  if (validTimestamps.length >= RATE_LIMIT_MAX_REQUESTS) {
-    return true;
+export class InvalidUtf8Error extends Error {
+  constructor(message = "Request body contains invalid UTF-8 encoding") {
+    super(message);
+    this.name = "InvalidUtf8Error";
   }
-
-  validTimestamps.push(now);
-  rateLimitMap.set(ip, validTimestamps);
-  return false;
 }
 
 export function resetRateLimitMap(): void {
-  rateLimitMap.clear();
+  globalRateLimiter.reset();
 }
 
+/**
+ * A1.6 (#7): UTF-8 repair
+ * Collects network chunks as raw Buffer array and decodes ONCE at completion using a fatal UTF-8 decoder.
+ * This guarantees split multibyte characters across chunk boundaries do not corrupt string content or timed-text hashes.
+ */
 function parseJsonBody<T>(req: IncomingMessage): Promise<T> {
   return new Promise((resolve, reject) => {
-    let body = "";
+    const chunks: Buffer[] = [];
     let bodyBytes = 0;
 
     req.on("data", (chunk: Buffer) => {
@@ -48,15 +44,33 @@ function parseJsonBody<T>(req: IncomingMessage): Promise<T> {
         reject(new PayloadTooLargeError());
         return;
       }
-      body += chunk.toString("utf8");
+      chunks.push(chunk);
     });
 
     req.on("end", () => {
       try {
+        if (bodyBytes === 0) {
+          reject(new Error("Empty request body"));
+          return;
+        }
+
+        const fullBuffer = Buffer.concat(chunks);
+
+        // Fatal UTF-8 decoding: throws TypeError on invalid byte sequences
+        let body: string;
+        try {
+          const decoder = new TextDecoder("utf-8", { fatal: true });
+          body = decoder.decode(fullBuffer as unknown as BufferSource);
+        } catch (_utfErr: unknown) {
+          reject(new InvalidUtf8Error("Malformed UTF-8 sequence in request body"));
+          return;
+        }
+
         if (!body.trim()) {
           reject(new Error("Empty request body"));
           return;
         }
+
         resolve(JSON.parse(body) as T);
       } catch (err: unknown) {
         reject(err);
@@ -67,30 +81,29 @@ function parseJsonBody<T>(req: IncomingMessage): Promise<T> {
   });
 }
 
-function sendJson(res: ServerResponse, statusCode: number, payload: unknown): void {
+function sendJson(
+  res: ServerResponse,
+  statusCode: number,
+  payload: unknown,
+  extraHeaders?: Record<string, string>,
+): void {
   const allowedOrigin = process.env["ALLOWED_ORIGIN"] ?? "*";
   res.writeHead(statusCode, {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
+    ...extraHeaders,
   });
   res.end(JSON.stringify(payload));
-}
-
-function getClientIp(req: IncomingMessage): string {
-  const forwarded = req.headers["x-forwarded-for"];
-  if (typeof forwarded === "string") {
-    return forwarded.split(",")[0]?.trim() ?? "127.0.0.1";
-  }
-  return req.socket?.remoteAddress ?? "127.0.0.1";
 }
 
 export function createAuthoringServer(engine?: AuthoringProposeEngine): Server {
   const proposeEngine = engine ?? new AuthoringProposeEngine();
 
   return createHttpServer(async (req: IncomingMessage, res: ServerResponse) => {
-    const clientIp = getClientIp(req);
+    // A1.3 (#4): Quota that survives spoofing via proxy-safe client IP resolution
+    const clientIp = getTrustedClientIp(req);
 
     if (req.method === "OPTIONS") {
       const allowedOrigin = process.env["ALLOWED_ORIGIN"] ?? "*";
@@ -103,8 +116,8 @@ export function createAuthoringServer(engine?: AuthoringProposeEngine): Server {
       return;
     }
 
-    // Rate Limiting Enforcement
-    if (checkRateLimit(clientIp)) {
+    // Rate Limiting Enforcement (A1.3)
+    if (globalRateLimiter.checkRateLimit(clientIp)) {
       sendJson(res, 429, {
         error: "Too Many Requests",
         message: "Rate limit exceeded (maximum 60 requests per minute)",
@@ -126,23 +139,36 @@ export function createAuthoringServer(engine?: AuthoringProposeEngine): Server {
     }
 
     if (req.method === "GET" && url === "/metrics") {
-      sendJson(res, 200, globalMetricsTracker.getMetrics());
+      // A1.9 (#5): Derive /metrics from durable review events & run ledger
+      sendJson(res, 200, globalRunLedger.getMetrics());
       return;
     }
 
     if (req.method === "POST" && url === "/propose") {
       try {
-        const body = await parseJsonBody<ProposeRequest>(req);
-        if (!body.segmentText || typeof body.startTime !== "number" || typeof body.endTime !== "number") {
+        const rawBody = await parseJsonBody<unknown>(req);
+
+        // A1.1 (#2): Closed request schema validation BEFORE model or engine execution
+        const validation = validateProposeRequest(rawBody);
+        if (!validation.ok || !validation.value) {
           sendJson(res, 400, {
             error: "Bad Request",
-            message: "Missing required fields: segmentText, startTime, endTime",
+            message: validation.error ?? "Invalid request schema",
           });
           return;
         }
 
-        const result = await proposeEngine.proposeSegment(body);
-        sendJson(res, 200, result);
+        const validRequest: ProposeRequest = {
+          ...validation.value,
+          clientIp,
+        };
+
+        const result = await proposeEngine.proposeSegment(validRequest);
+
+        // A1.5 (#6): Return HTTP response carrying durable run reference
+        sendJson(res, 200, result, {
+          "X-Run-ID": result.durableRunRef,
+        });
       } catch (err: unknown) {
         if (err instanceof PayloadTooLargeError) {
           sendJson(res, 413, {
@@ -152,11 +178,15 @@ export function createAuthoringServer(engine?: AuthoringProposeEngine): Server {
           return;
         }
 
+        if (err instanceof InvalidUtf8Error) {
+          sendJson(res, 400, {
+            error: "Bad Request",
+            message: err.message,
+          });
+          return;
+        }
+
         if (err instanceof GeminiApiError) {
-          // The client response stays sanitised, but the cause must reach the
-          // operator: without this a production Gemini failure is invisible in
-          // Cloud Logging and therefore undiagnosable. The cause carries the
-          // provider's own error, never request text or identities.
           if (process.env["NODE_ENV"] !== "test") {
             const cause = err.cause;
             const detail =
@@ -164,10 +194,13 @@ export function createAuthoringServer(engine?: AuthoringProposeEngine): Server {
             process.stderr.write(`GeminiApiError: ${err.message} | cause: ${detail}\n`);
           }
 
+          const failedRunRef = (err as unknown as Record<string, unknown>)["durableRunRef"] as string | undefined;
+
           sendJson(res, 502, {
             error: "Bad Gateway",
             message: "Gemini API request failed",
-          });
+            ...(failedRunRef ? { durableRunRef: failedRunRef } : {}),
+          }, failedRunRef ? { "X-Run-ID": failedRunRef } : undefined);
           return;
         }
 
