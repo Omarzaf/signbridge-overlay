@@ -39,12 +39,17 @@ const requiredFiles = [
   "contracts/contest-evidence.schema.json",
   "contracts/release-request.schema.json",
   "contracts/review-event.schema.json",
+  "contracts/review-unit.schema.json",
   "contracts/run-manifest.schema.json",
   "contracts/signpack.schema.json",
   "fixtures/SYNTHETIC_UNSUPPORTED_FIXTURES.md",
   "fixtures/synthetic-invalid-caption-pack.json",
   "packages/signpack-schema/README.md",
   "packages/signpack-schema/src/index.ts",
+  "packages/signpack-schema/src/ledger.ts",
+  "packages/signpack-schema/src/ledger.test.ts",
+  "packages/signpack-schema/src/reviewUnit.ts",
+  "packages/signpack-schema/src/reviewUnit.test.ts",
   "packages/signpack-schema/src/types.ts",
   "packages/signpack-schema/src/validator.test.ts",
   "packages/signpack-schema/src/validator.ts",
@@ -223,10 +228,14 @@ function collectImportSpecifiers(source) {
   return specifiers;
 }
 
+// Every extension the playback path may be authored in. A module the scan does
+// not open is a module whose imports nobody checked, so this list must stay at
+// least as wide as what the toolchain will actually load.
+const scannedSourceExtensions = new Set([".ts", ".tsx", ".js", ".mjs"]);
+
 function isTestSource(fileName) {
   return (
-    fileName.endsWith(".test.ts") ||
-    fileName.endsWith(".spec.ts") ||
+    /\.(?:test|spec)\.(?:ts|tsx|js|mjs)$/u.test(fileName) ||
     fileName.startsWith("tests/")
   );
 }
@@ -425,7 +434,7 @@ for (const file of files) {
 let scannedPlaybackSources = 0;
 
 for (const file of files) {
-  if (extname(file) !== ".ts") {
+  if (!scannedSourceExtensions.has(extname(file).toLowerCase())) {
     continue;
   }
 
@@ -615,13 +624,16 @@ if (errors.length > 0) {
   }
   process.exitCode = 1;
 } else {
+  const scannedExtensionList = [...scannedSourceExtensions].join(", ");
   console.log(
     `Foundation verification passed: ${requiredFiles.length} required files, ` +
       `${packageFiles.length} package manifest(s), ` +
       `${approvedRootDevDependencies.size} approved development tools, ` +
-      `${scannedPlaybackSources} playback sources with no cross-boundary or external imports, ` +
+      `${scannedPlaybackSources} playback sources (${scannedExtensionList}) with no cross-boundary or external imports, ` +
       `${scannedPresentationSources} presentation sources with no crop or mirror, ` +
       `${fixtureFiles.length} synthetic fixtures with reserved language markers, ` +
-      `and ${files.length} repository files checked; no production dependencies or media present.`,
+      `and ${files.length} tracked repository files checked. ` +
+      `No forbidden production dependency, tracked media file, or private environment file was found among them. ` +
+      `This is a structural check of tracked files only: it is not a security review, a licence review, or evidence that any behaviour was tested.`,
   );
 }

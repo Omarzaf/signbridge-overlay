@@ -163,7 +163,32 @@ test("keeps approved test-runner imports allowed in playback test sources", asyn
   const result = await runVerifier(root);
 
   assert.equal(result.exitCode, 0, result.stderr);
-  assert.match(result.stdout, /playback sources with no cross-boundary/u);
+  assert.match(result.stdout, /playback sources \(.*\) with no cross-boundary/u);
+});
+
+test("scans playback sources that are not TypeScript", async () => {
+  // A .js, .mjs, or .tsx module in the playback path used to pass unread, so
+  // its imports were never checked against the dependency-free boundary.
+  for (const fileName of ["smuggled.js", "smuggled.mjs", "smuggled.tsx"]) {
+    const root = await copyRepository();
+    await writeFile(
+      join(root, "packages", "sync-engine", "src", fileName),
+      'import surprise from "surprise-package";\nexport default surprise;\n',
+    );
+
+    const result = await runVerifier(root);
+
+    assert.notEqual(result.exitCode, 0, `${fileName} was not scanned`);
+    assert.match(result.stderr, /must stay dependency-free/u);
+  }
+});
+
+test("states the limits of what the foundation check proves", async () => {
+  const result = await runVerifier(repositoryRoot);
+
+  assert.equal(result.exitCode, 0, result.stderr);
+  assert.match(result.stdout, /tracked files only/u);
+  assert.doesNotMatch(result.stdout, /no production dependencies or media present/u);
 });
 
 test("rejects a real signed-language code in a synthetic fixture", async () => {

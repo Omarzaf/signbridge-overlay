@@ -334,6 +334,70 @@ export interface ContestEvidence {
   };
 }
 
+/**
+ * The review unit is versioned independently of the SignPack schema: a change
+ * to what human approval binds is a different kind of change from a change to
+ * the pack format, and the two must be able to move apart.
+ */
+export const REVIEW_UNIT_SCHEMA_VERSION = "2.0.0" as const;
+
+export type ReviewUnitSchemaVersion = typeof REVIEW_UNIT_SCHEMA_VERSION;
+
+export interface ReviewUnitSource {
+  readonly fingerprint: string;
+  readonly timedTextHash: string;
+  readonly startMs: number;
+  readonly endMs: number;
+}
+
+export interface ReviewUnitLanguage {
+  readonly signedLanguage: string;
+  readonly region: string;
+}
+
+export interface ReviewUnitCatalog {
+  readonly catalogVersion: string;
+  readonly candidateSetHash: string;
+}
+
+export interface ReviewUnitSelection {
+  readonly translationStatus: TranslationStatus;
+  /** v1 binds at most one asset per segment, by exact media hash. */
+  readonly assetHashes: readonly string[];
+  readonly reasonCode?: string;
+}
+
+/**
+ * Presentation state is bound because approving a clip is not approving a
+ * cropped, mirrored, or otherwise transformed version of it. All three are
+ * required false in v1; the fields exist so a future change cannot silently
+ * reuse an approval granted under today's rules.
+ */
+export interface ReviewUnitPresentation {
+  readonly cropped: false;
+  readonly mirrored: false;
+  readonly transformed: false;
+}
+
+/**
+ * The complete unit a qualified human reviewer approves. Its canonical hash is
+ * what a decision signs; any material change to any bound field invalidates
+ * that approval rather than silently carrying it forward.
+ */
+export interface ReviewUnitV2 {
+  readonly schemaVersion: ReviewUnitSchemaVersion;
+  readonly reviewUnitId: string;
+  readonly proposalId: string;
+  readonly runId: string;
+  readonly packId: string;
+  readonly segmentId: string;
+  readonly source: ReviewUnitSource;
+  readonly language: ReviewUnitLanguage;
+  readonly catalog: ReviewUnitCatalog;
+  readonly selection: ReviewUnitSelection;
+  readonly presentation: ReviewUnitPresentation;
+}
+
 export interface ValidationIssue {
   readonly path: string;
   readonly code: string;
