@@ -153,6 +153,17 @@ export function createAuthoringServer(engine?: AuthoringProposeEngine): Server {
         }
 
         if (err instanceof GeminiApiError) {
+          // The client response stays sanitised, but the cause must reach the
+          // operator: without this a production Gemini failure is invisible in
+          // Cloud Logging and therefore undiagnosable. The cause carries the
+          // provider's own error, never request text or identities.
+          if (process.env["NODE_ENV"] !== "test") {
+            const cause = err.cause;
+            const detail =
+              cause instanceof Error ? cause.stack ?? cause.message : String(cause);
+            process.stderr.write(`GeminiApiError: ${err.message} | cause: ${detail}\n`);
+          }
+
           sendJson(res, 502, {
             error: "Bad Gateway",
             message: "Gemini API request failed",
